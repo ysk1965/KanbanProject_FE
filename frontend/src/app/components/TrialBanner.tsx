@@ -1,0 +1,101 @@
+import { SubscriptionStatus } from '../types';
+import { Button } from './ui/button';
+
+interface TrialBannerProps {
+  status: SubscriptionStatus;
+  daysRemaining?: number;
+  onOpenSubscription?: () => void;
+}
+
+export function TrialBanner({ status, daysRemaining = 0, onOpenSubscription }: TrialBannerProps) {
+  if (status === 'active') return null;
+
+  if (status === 'trial') {
+    return (
+      <div className="bg-blue-900 border-b border-blue-800 px-6 py-3">
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🎉</span>
+            <div>
+              <span className="font-semibold text-white">
+                무료 체험 중 (D-{daysRemaining})
+              </span>
+              <span className="text-blue-200 ml-2">
+                체험 기간이 {daysRemaining}일 남았습니다.
+              </span>
+            </div>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="border-blue-400 text-white hover:bg-blue-800"
+            onClick={onOpenSubscription}
+          >
+            요금제 보기
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'grace') {
+    return (
+      <div className="bg-yellow-900 border-b border-yellow-800 px-6 py-3">
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">⚠️</span>
+            <div>
+              <span className="font-semibold text-white">
+                체험 기간이 종료되었습니다
+              </span>
+              <span className="text-yellow-200 ml-2">
+                3일 내 구독하지 않으면 기능이 제한됩니다.
+              </span>
+            </div>
+          </div>
+          <Button 
+            size="sm" 
+            className="bg-yellow-500 hover:bg-yellow-600 text-gray-900"
+            onClick={onOpenSubscription}
+          >
+            지금 구독하기
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'suspended') {
+    return (
+      <div className="bg-red-900 border-b border-red-800 px-6 py-3">
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🔒</span>
+            <div>
+              <span className="font-semibold text-white">
+                이 보드는 현재 정지 상태입니다
+              </span>
+              <span className="text-red-200 ml-2">
+                구독을 시작하면 모든 기능을 다시 사용할 수 있습니다.
+              </span>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button 
+              size="sm" 
+              className="bg-red-500 hover:bg-red-600"
+              onClick={onOpenSubscription}
+            >
+              구독하기
+            </Button>
+            <Button variant="outline" size="sm" className="border-red-400 text-white hover:bg-red-800">
+              데이터 내보내기
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}

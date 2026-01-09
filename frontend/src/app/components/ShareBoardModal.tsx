@@ -1,0 +1,291 @@
+import { useState } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from './ui/dialog';
+import { Input } from './ui/input';
+import { Button } from './ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select';
+import { Badge } from './ui/badge';
+import { X, Link as LinkIcon, Copy, Check, UserPlus, Trash2, Plus } from 'lucide-react';
+import { InviteLink } from '../utils/api';
+
+export type MemberRole = 'admin' | 'member' | 'observer';
+
+export interface BoardMember {
+  id: string;
+  name: string;
+  email: string;
+  role: MemberRole;
+  avatar?: string;
+}
+
+interface ShareBoardModalProps {
+  open: boolean;
+  onClose: () => void;
+  members: BoardMember[];
+  onAddMember: (email: string, role: MemberRole) => void;
+  onUpdateMemberRole: (memberId: string, role: MemberRole) => void;
+  onRemoveMember: (memberId: string) => void;
+  currentUserId: string;
+  // 초대 링크 관련
+  inviteLinks?: InviteLink[];
+  onCreateInviteLink?: (role: string, maxUses: number, expiresIn: string) => Promise<void>;
+  onDeleteInviteLink?: (linkId: string) => Promise<void>;
+}
+
+const ROLE_LABELS: Record<MemberRole, string> = {
+  admin: 'Admin',
+  member: 'Member',
+  observer: 'Observer',
+};
+
+const ROLE_COLORS: Record<MemberRole, string> = {
+  admin: 'bg-purple-100 text-purple-700 border-purple-300',
+  member: 'bg-blue-100 text-blue-700 border-blue-300',
+  observer: 'bg-gray-100 text-gray-700 border-gray-300',
+};
+
+export function ShareBoardModal({
+  open,
+  onClose,
+  members,
+  onAddMember,
+  onUpdateMemberRole,
+  onRemoveMember,
+  currentUserId,
+  // 초대 링크 관련
+  inviteLinks,
+  onCreateInviteLink,
+  onDeleteInviteLink,
+}: ShareBoardModalProps) {
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<MemberRole>('member');
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const handleInvite = () => {
+    if (inviteEmail.trim()) {
+      onAddMember(inviteEmail.trim(), inviteRole);
+      setInviteEmail('');
+      setInviteRole('member');
+    }
+  };
+
+  const handleCopyLink = () => {
+    // 실제로는 보드 링크를 복사해야 하지만, 여기서는 데모용
+    const boardLink = `${window.location.origin}/board/demo-board-id`;
+    navigator.clipboard.writeText(boardLink);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
+
+  const currentUser = members.find((m) => m.id === currentUserId);
+  const isCurrentUserAdmin = currentUser?.role === 'admin';
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col bg-gray-900 text-white border-gray-700">
+        <DialogHeader>
+          <DialogTitle className="text-white">Share board</DialogTitle>
+          <DialogDescription className="sr-only">
+            보드를 팀원과 공유합니다
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto space-y-6">
+          {/* 초대 섹션 */}
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Input
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="Email address or name"
+                className="flex-1 bg-gray-800 border-gray-700 text-white placeholder:text-gray-400"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleInvite();
+                  }
+                }}
+              />
+              <Select
+                value={inviteRole}
+                onValueChange={(value) => setInviteRole(value as MemberRole)}
+              >
+                <SelectTrigger className="w-[130px] bg-gray-800 border-gray-700 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="member">Member</SelectItem>
+                  <SelectItem value="observer">Observer</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                onClick={handleInvite}
+                disabled={!inviteEmail.trim()}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                Share
+              </Button>
+            </div>
+
+            {/* 링크 공유 */}
+            <div className="flex items-center justify-between p-3 bg-gray-800 rounded-lg border border-gray-700">
+              <div className="flex items-center gap-3">
+                <LinkIcon className="h-5 w-5 text-gray-400" />
+                <div>
+                  <p className="text-sm text-gray-300">
+                    Anyone with the link can join as an
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button className="text-sm text-blue-400 hover:underline">
+                      Observer
+                    </button>
+                    <span className="text-gray-500">•</span>
+                    <button className="text-sm text-blue-400 hover:underline">
+                      Copy link
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCopyLink}
+                className="text-gray-300 hover:text-white hover:bg-gray-700"
+              >
+                {linkCopied ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {/* 멤버 목록 */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-white">Board members</h3>
+              <Badge variant="secondary" className="bg-gray-700 text-gray-300">
+                {members.length}
+              </Badge>
+            </div>
+
+            <div className="space-y-2">
+              {members.map((member) => {
+                const isCurrentMember = member.id === currentUserId;
+                const canEdit = isCurrentUserAdmin && !isCurrentMember;
+
+                return (
+                  <div
+                    key={member.id}
+                    className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-800 border border-transparent hover:border-gray-700"
+                  >
+                    <div className="flex items-center gap-3">
+                      {/* 아바타 */}
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-semibold">
+                        {member.name.charAt(0).toUpperCase()}
+                      </div>
+
+                      {/* 정보 */}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-white">
+                            {member.name}
+                          </span>
+                          {isCurrentMember && (
+                            <span className="text-xs text-gray-400">(you)</span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-400">{member.email}</p>
+                      </div>
+                    </div>
+
+                    {/* 역할 & 액션 */}
+                    <div className="flex items-center gap-2">
+                      {canEdit ? (
+                        <>
+                          <Select
+                            value={member.role}
+                            onValueChange={(value) =>
+                              onUpdateMemberRole(member.id, value as MemberRole)
+                            }
+                          >
+                            <SelectTrigger className="w-[130px] bg-gray-800 border-gray-700 text-white">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="admin">Admin</SelectItem>
+                              <SelectItem value="member">Member</SelectItem>
+                              <SelectItem value="observer">Observer</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onRemoveMember(member.id)}
+                            className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      ) : (
+                        <Badge
+                          className={`${
+                            ROLE_COLORS[member.role]
+                          } border px-3 py-1`}
+                        >
+                          {ROLE_LABELS[member.role]}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 권한 설명 */}
+          <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
+            <h4 className="font-semibold text-white mb-2">역할 권한</h4>
+            <div className="space-y-2 text-sm text-gray-400">
+              <div>
+                <span className="font-medium text-purple-400">Admin:</span> 모든
+                권한 (멤버 관리, 보드 설정, 카드 편집 등)
+              </div>
+              <div>
+                <span className="font-medium text-blue-400">Member:</span> 카드
+                생성 및 편집, 댓글 작성
+              </div>
+              <div>
+                <span className="font-medium text-gray-400">Observer:</span> 읽기
+                전용 (카드 조회만 가능)
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 닫기 버튼 */}
+        <div className="flex justify-end pt-4 border-t border-gray-700">
+          <Button
+            onClick={onClose}
+            variant="outline"
+            className="border-gray-600 text-gray-300 hover:bg-gray-800"
+          >
+            Close
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
