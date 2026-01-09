@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Star, Plus, Users } from 'lucide-react';
+import { Star, Plus, Users, LogOut } from 'lucide-react';
 import { CreateBoardModal } from './CreateBoardModal';
+import { Button } from './ui/button';
 import type { Board } from '../types';
 
 interface BoardListPageProps {
@@ -8,6 +9,7 @@ interface BoardListPageProps {
   onSelectBoard: (boardId: string) => void;
   onCreateBoard: (name: string, description?: string) => void;
   onToggleStar: (boardId: string) => void;
+  onLogout: () => void;
 }
 
 // 보드 색상 gradient 생성
@@ -31,6 +33,7 @@ export function BoardListPage({
   onSelectBoard,
   onCreateBoard,
   onToggleStar,
+  onLogout,
 }: BoardListPageProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
@@ -41,21 +44,32 @@ export function BoardListPage({
       {/* 헤더 */}
       <header className="border-b border-gray-800">
         <div className="max-w-7xl mx-auto px-6 py-6">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-gradient-to-br from-teal-400 to-teal-600 rounded flex items-center justify-center">
-              <span className="text-2xl font-bold text-white">K</span>
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold">Kanban Workspace</h1>
-              <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5">
-                <span className="px-1.5 py-0.5 bg-blue-600 text-white rounded text-[10px]">
-                  Premium
-                </span>
-                <span className="flex items-center gap-1">
-                  Private
-                </span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-gradient-to-br from-teal-400 to-teal-600 rounded flex items-center justify-center">
+                <span className="text-2xl font-bold text-white">K</span>
+              </div>
+              <div>
+                <h1 className="text-xl font-semibold">Kanban Workspace</h1>
+                <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5">
+                  <span className="px-1.5 py-0.5 bg-blue-600 text-white rounded text-[10px]">
+                    Premium
+                  </span>
+                  <span className="flex items-center gap-1">
+                    Private
+                  </span>
+                </div>
               </div>
             </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onLogout}
+              className="text-gray-400 hover:text-white hover:bg-[#3a4149]"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
           </div>
         </div>
       </header>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { X, CreditCard, Calendar, Users, Check } from 'lucide-react';
+import { X, CreditCard, Users, Check } from 'lucide-react';
 import { Button } from './ui/button';
-import { Subscription, PricingPlan } from '../utils/api';
+import { Subscription, PricingPlan } from '../types';
 
 interface SubscriptionModalProps {
   open: boolean;
@@ -23,19 +23,19 @@ export function SubscriptionModal({
   onCancelSubscription,
 }: SubscriptionModalProps) {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>(
-    subscription?.billingCycle || 'monthly'
+    subscription?.billing_cycle === 'YEARLY' ? 'yearly' : 'monthly'
   );
-  const [selectedPlanId, setSelectedPlanId] = useState(subscription?.plan.id || '');
+  const [selectedPlanId, setSelectedPlanId] = useState(subscription?.plan || '');
   const [isProcessing, setIsProcessing] = useState(false);
 
   if (!open) return null;
 
   const handleSubscribe = async () => {
     if (!selectedPlanId) return;
-    
+
     setIsProcessing(true);
     try {
-      if (subscription?.status === 'active') {
+      if (subscription?.status === 'ACTIVE') {
         await onChangePlan(selectedPlanId, billingCycle);
       } else {
         await onSubscribe(selectedPlanId, billingCycle);
@@ -49,7 +49,7 @@ export function SubscriptionModal({
 
   const handleCancel = async () => {
     if (!confirm('정말 구독을 취소하시겠습니까?')) return;
-    
+
     setIsProcessing(true);
     try {
       await onCancelSubscription();
@@ -62,24 +62,30 @@ export function SubscriptionModal({
 
   const getStatusBadge = (status: Subscription['status']) => {
     switch (status) {
-      case 'trial':
+      case 'TRIAL':
         return <span className="bg-blue-500/20 text-blue-400 px-2 py-1 rounded text-xs">무료 체험</span>;
-      case 'active':
+      case 'ACTIVE':
         return <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded text-xs">활성</span>;
-      case 'past_due':
-        return <span className="bg-red-500/20 text-red-400 px-2 py-1 rounded text-xs">결제 지연</span>;
-      case 'canceled':
+      case 'GRACE':
+        return <span className="bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded text-xs">유예 기간</span>;
+      case 'SUSPENDED':
+        return <span className="bg-red-500/20 text-red-400 px-2 py-1 rounded text-xs">일시 중지</span>;
+      case 'CANCELED':
         return <span className="bg-gray-500/20 text-gray-400 px-2 py-1 rounded text-xs">취소됨</span>;
     }
   };
 
-  const formatDate = (dateStr: string) => {
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return '-';
     return new Date(dateStr).toLocaleDateString('ko-KR');
   };
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('ko-KR').format(price);
   };
+
+  // 현재 선택된 플랜 이름 찾기
+  const currentPlanName = plans.find(p => p.id === subscription?.plan)?.name || subscription?.plan || '-';
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -112,55 +118,63 @@ export function SubscriptionModal({
                 <div>
                   <div className="text-gray-400 mb-1">플랜</div>
                   <div className="text-white font-medium">
-                    {subscription.plan.name}
+                    {currentPlanName}
                   </div>
                 </div>
 
-                <div>
-                  <div className="text-gray-400 mb-1">결제 주기</div>
-                  <div className="text-white font-medium">
-                    {subscription.billingCycle === 'monthly' ? '월간' : '연간'}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-gray-400 mb-1">가격</div>
-                  <div className="text-white font-medium">
-                    ₩{formatPrice(subscription.price)}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-gray-400 mb-1">멤버 수</div>
-                  <div className="text-white font-medium">
-                    {subscription.billableMemberCount}명
-                  </div>
-                </div>
-
-                {subscription.status === 'trial' && subscription.trialEndsAt && (
-                  <div className="col-span-2">
-                    <div className="text-gray-400 mb-1">체험 종료일</div>
+                {subscription.billing_cycle && (
+                  <div>
+                    <div className="text-gray-400 mb-1">결제 주기</div>
                     <div className="text-white font-medium">
-                      {formatDate(subscription.trialEndsAt)}
+                      {subscription.billing_cycle === 'MONTHLY' ? '월간' : '연간'}
                     </div>
                   </div>
                 )}
 
-                {subscription.status === 'active' && (
-                  <>
-                    <div>
-                      <div className="text-gray-400 mb-1">현재 결제 기간</div>
-                      <div className="text-white font-medium">
-                        {formatDate(subscription.currentPeriodStart)} -{' '}
-                        {formatDate(subscription.currentPeriodEnd)}
-                      </div>
+                {subscription.price != null && (
+                  <div>
+                    <div className="text-gray-400 mb-1">가격</div>
+                    <div className="text-white font-medium">
+                      ₩{formatPrice(subscription.price)}
                     </div>
+                  </div>
+                )}
 
-                    {subscription.nextPaymentAt && (
+                {subscription.billable_member_count != null && (
+                  <div>
+                    <div className="text-gray-400 mb-1">멤버 수</div>
+                    <div className="text-white font-medium">
+                      {subscription.billable_member_count}명 / {subscription.member_limit || '-'}명
+                    </div>
+                  </div>
+                )}
+
+                {subscription.status === 'TRIAL' && subscription.trial_ends_at && (
+                  <div className="col-span-2">
+                    <div className="text-gray-400 mb-1">체험 종료일</div>
+                    <div className="text-white font-medium">
+                      {formatDate(subscription.trial_ends_at)}
+                    </div>
+                  </div>
+                )}
+
+                {subscription.status === 'ACTIVE' && (
+                  <>
+                    {subscription.current_period_start && subscription.current_period_end && (
+                      <div>
+                        <div className="text-gray-400 mb-1">현재 결제 기간</div>
+                        <div className="text-white font-medium">
+                          {formatDate(subscription.current_period_start)} -{' '}
+                          {formatDate(subscription.current_period_end)}
+                        </div>
+                      </div>
+                    )}
+
+                    {subscription.next_payment_at && (
                       <div>
                         <div className="text-gray-400 mb-1">다음 결제일</div>
                         <div className="text-white font-medium">
-                          {formatDate(subscription.nextPaymentAt)}
+                          {formatDate(subscription.next_payment_at)}
                         </div>
                       </div>
                     )}
@@ -168,7 +182,7 @@ export function SubscriptionModal({
                 )}
               </div>
 
-              {subscription.status === 'active' && (
+              {subscription.status === 'ACTIVE' && (
                 <div className="mt-4">
                   <Button
                     onClick={handleCancel}
@@ -222,8 +236,8 @@ export function SubscriptionModal({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {plans.map((plan) => {
                 const price =
-                  billingCycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice;
-                const isCurrentPlan = subscription?.plan.id === plan.id;
+                  billingCycle === 'monthly' ? plan.monthly_price : plan.yearly_price;
+                const isCurrentPlan = subscription?.plan === plan.id;
                 const isSelected = selectedPlanId === plan.id;
 
                 return (
@@ -252,21 +266,20 @@ export function SubscriptionModal({
                       <div className="text-sm text-gray-400">
                         / {billingCycle === 'monthly' ? '월' : '년'}
                       </div>
+                      {billingCycle === 'yearly' && plan.discount_percentage > 0 && (
+                        <div className="text-xs text-green-400 mt-1">
+                          {plan.discount_percentage}% 할인
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-2 text-sm text-gray-300">
                       <div className="flex items-center gap-2">
                         <Users className="h-4 w-4 text-blue-400" />
                         <span>
-                          {plan.minMembers}명 ~ {plan.maxMembers}명
+                          {plan.min_members}명 ~ {plan.max_members}명
                         </span>
                       </div>
-                      {plan.features?.map((feature, index) => (
-                        <div key={index} className="flex items-center gap-2">
-                          <Check className="h-4 w-4 text-green-400" />
-                          <span>{feature}</span>
-                        </div>
-                      ))}
                     </div>
                   </button>
                 );
@@ -291,7 +304,7 @@ export function SubscriptionModal({
           >
             {isProcessing
               ? '처리중...'
-              : subscription?.status === 'active'
+              : subscription?.status === 'ACTIVE'
               ? '플랜 변경'
               : '구독 시작'}
           </Button>

@@ -153,7 +153,7 @@ function App() {
 
   const currentUserId = 'user_1'; // 현재 로그인한 사용자 ID
 
-  // 초기 데이터 로드
+  // 초기 데이터 로드 (보드 목록 및 가격 정보)
   useEffect(() => {
     const loadInitialData = async () => {
       // 인증되지 않은 경우 데이터 로드하지 않음
@@ -164,36 +164,15 @@ function App() {
 
       try {
         setIsLoading(true);
-        
+
         // 보드 목록 로드
         const boardsData = await boardService.getBoards();
         setBoards(boardsData);
-        
-        // 목업 데이터 초기화
-        const mockData = initializeMockData();
-        setBlocks(mockData.blocks);
-        setFeatures(mockData.features);
-        setTasks(mockData.tasks);
-        setTags(mockData.tags);
-        
-        // 초대 링크 로드 (보드 ID가 필요하므로 나중에 로드)
-        const inviteLinksData = await inviteLinkService.getInviteLinks('board_1');
-        setInviteLinks(inviteLinksData);
-        
-        // 구독 정보 로드
-        const subscriptionData = await subscriptionService.getSubscription('board_1');
-        setSubscription(subscriptionData);
-        
-        // 가격 책정 정보 로드
-        const pricingPlansData = await pricingService.getPlans();
-        setPricingPlans(pricingPlansData);
-        
-        // 활동 로그 로드
-        const activitiesResponse = await activityService.getActivity('board_1');
-        setActivities(activitiesResponse.items);
-        setActivityCursor(activitiesResponse.nextCursor);
-        setHasMoreActivity(activitiesResponse.hasMore);
-        
+
+        // 가격 책정 정보 로드 (보드 선택과 무관)
+        const pricingResponse = await pricingService.getPlans();
+        setPricingPlans(pricingResponse.plans);
+
       } catch (error) {
         console.error('Failed to load initial data:', error);
       } finally {
@@ -203,6 +182,63 @@ function App() {
 
     loadInitialData();
   }, [isAuthenticated]);
+
+  // 보드 선택 시 보드별 데이터 로드
+  useEffect(() => {
+    const loadBoardData = async () => {
+      if (!currentBoardId) {
+        // 보드가 선택되지 않으면 데이터 초기화
+        setBlocks([]);
+        setFeatures([]);
+        setTasks([]);
+        setTags([]);
+        setInviteLinks([]);
+        setSubscription(null);
+        setActivities([]);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+
+        // 병렬로 모든 보드 데이터 로드
+        const [
+          blocksData,
+          featuresData,
+          tasksData,
+          tagsData,
+          inviteLinksData,
+          subscriptionData,
+          activitiesResponse,
+        ] = await Promise.all([
+          blockService.getBlocks(currentBoardId),
+          featureService.getFeatures(currentBoardId),
+          taskService.getTasks(currentBoardId),
+          tagService.getTags(currentBoardId),
+          inviteLinkService.getInviteLinks(currentBoardId),
+          subscriptionService.getSubscription(currentBoardId),
+          activityService.getActivities(currentBoardId),
+        ]);
+
+        setBlocks(blocksData);
+        setFeatures(featuresData);
+        setTasks(tasksData);
+        setTags(tagsData);
+        setInviteLinks(inviteLinksData);
+        setSubscription(subscriptionData);
+        setActivities(activitiesResponse.activities);
+        setActivityCursor(activitiesResponse.next_cursor || undefined);
+        setHasMoreActivity(activitiesResponse.has_more);
+
+      } catch (error) {
+        console.error('Failed to load board data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadBoardData();
+  }, [currentBoardId]);
 
   // 보드 관리 함수
   const handleSelectBoard = async (boardId: string) => {
@@ -333,11 +369,11 @@ function App() {
 
   // 활동 로그 핸들러
   const handleLoadMoreActivity = async () => {
-    if (!hasMoreActivity || !activityCursor) return;
-    const response = await activityService.getActivity(currentBoardId || 'board_1', 20, activityCursor);
-    setActivities([...activities, ...response.items]);
-    setActivityCursor(response.nextCursor);
-    setHasMoreActivity(response.hasMore);
+    if (!hasMoreActivity || !activityCursor || !currentBoardId) return;
+    const response = await activityService.getActivities(currentBoardId, { cursor: activityCursor, limit: 20 });
+    setActivities([...activities, ...response.activities]);
+    setActivityCursor(response.next_cursor || undefined);
+    setHasMoreActivity(response.has_more);
   };
 
   const sortedBlocks = useMemo(() => {
@@ -425,24 +461,26 @@ function App() {
   };
 
   // Feature 관리
-  const handleAddFeature = (title: string, description: string) => {
-    const newFeature: Feature = {
-      id: `f${Date.now()}`,
-      title,
-      description,
-      color: getRandomFeatureColor(),
-      assignee: null,
-      priority: null,
-      due_date: null,
-      status: 'ACTIVE',
-      total_tasks: 0,
-      completed_tasks: 0,
-      progress_percentage: 0,
-      position: features.length,
-      tags: [],
-      created_at: new Date().toISOString(),
-    };
-    setFeatures([...features, newFeature]);
+  const handleAddFeature = async (data: {
+    title: string;
+    description?: string;
+    priority?: Priority;
+    dueDate?: string;
+  }) => {
+    if (!currentBoardId) return;
+
+    try {
+      const newFeature = await featureService.createFeature(currentBoardId, {
+        title: data.title,
+        description: data.description,
+        color: getRandomFeatureColor(),
+        priority: data.priority?.toUpperCase() as 'HIGH' | 'MEDIUM' | 'LOW' | undefined,
+        due_date: data.dueDate,
+      });
+      setFeatures([...features, newFeature]);
+    } catch (error) {
+      console.error('Failed to create feature:', error);
+    }
   };
 
   const handleFeatureClick = (feature: Feature) => {
@@ -450,13 +488,30 @@ function App() {
     setIsFeatureModalOpen(true);
   };
 
-  const handleUpdateFeature = (
-    featureId: string,
-    updates: Partial<Feature>
-  ) => {
-    setFeatures(
-      features.map((f) => (f.id === featureId ? { ...f, ...updates } : f))
-    );
+  const handleUpdateFeature = async (updates: Partial<Feature>) => {
+    if (!currentBoardId || !updates.id) return;
+
+    const featureId = updates.id;
+
+    try {
+      const updatedFeature = await featureService.updateFeature(currentBoardId, featureId, {
+        title: updates.title,
+        description: updates.description,
+        color: updates.color,
+        assignee_id: updates.assignee?.id,
+        priority: updates.priority,
+        due_date: updates.due_date,
+      });
+      setFeatures(
+        features.map((f) => (f.id === featureId ? updatedFeature : f))
+      );
+    } catch (error) {
+      console.error('Failed to update feature:', error);
+      // Fallback: 로컬 상태만 업데이트
+      setFeatures(
+        features.map((f) => (f.id === featureId ? { ...f, ...updates } : f))
+      );
+    }
   };
 
   const handleDeleteFeature = (featureId: string) => {
@@ -468,33 +523,29 @@ function App() {
   };
 
   // Task 관리
-  const handleAddSubtask = (featureId: string, taskTitle: string) => {
+  const handleAddSubtask = async (featureId: string, taskTitle: string) => {
+    if (!currentBoardId) return;
+
     const feature = features.find((f) => f.id === featureId);
     if (!feature) return;
 
-    const newTask: Task = {
-      id: `t${Date.now()}`,
-      title: taskTitle,
-      feature_id: featureId,
-      feature_title: feature.title,
-      feature_color: feature.color,
-      block_id: 'task',
-      assignee: null,
-      due_date: null,
-      estimated_minutes: null,
-      is_completed: false,
-      position: tasks.filter((t) => t.block_id === 'task').length,
-      tags: [],
-      created_at: new Date().toISOString(),
-    };
+    try {
+      const newTask = await taskService.createTask(currentBoardId, featureId, {
+        title: taskTitle,
+      });
 
-    // Task 추가
-    setTasks([...tasks, newTask]);
+      // Task 추가
+      setTasks([...tasks, newTask]);
 
-    // Feature의 total_tasks 업데이트
-    handleUpdateFeature(featureId, {
-      total_tasks: feature.total_tasks + 1,
-    });
+      // Feature의 total_tasks 업데이트 (API 응답에서 이미 업데이트됐을 수 있음)
+      setFeatures(
+        features.map((f) =>
+          f.id === featureId ? { ...f, total_tasks: f.total_tasks + 1 } : f
+        )
+      );
+    } catch (error) {
+      console.error('Failed to create task:', error);
+    }
   };
 
   const handleTaskClick = (task: Task) => {
@@ -502,7 +553,10 @@ function App() {
     setIsTaskModalOpen(true);
   };
 
-  const handleUpdateTask = (taskId: string, updates: Partial<Task>) => {
+  const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
+    if (!currentBoardId) return;
+
+    // 로컬 상태 즉시 업데이트 (낙관적 업데이트)
     setTasks(tasks.map((t) => (t.id === taskId ? { ...t, ...updates } : t)));
 
     // Task의 체크리스트가 업데이트되었을 경우
@@ -511,6 +565,30 @@ function App() {
       if (task) {
         // Feature 진행률 업데이트 (Task 자체는 변경 없음)
         updateFeatureProgress(task.feature_id);
+      }
+    }
+
+    // API 호출
+    try {
+      const updatedTask = await taskService.updateTask(currentBoardId, taskId, {
+        title: updates.title,
+        description: updates.description,
+        assignee_id: updates.assignee?.id ?? null,
+        due_date: updates.due_date ?? null,
+        estimated_minutes: updates.estimated_minutes ?? null,
+      });
+      // API 응답으로 상태 업데이트
+      setTasks((prevTasks) =>
+        prevTasks.map((t) => (t.id === taskId ? updatedTask : t))
+      );
+    } catch (error) {
+      console.error('Failed to update task:', error);
+      // 실패 시 원래 상태로 롤백
+      const originalTask = tasks.find((t) => t.id === taskId);
+      if (originalTask) {
+        setTasks((prevTasks) =>
+          prevTasks.map((t) => (t.id === taskId ? originalTask : t))
+        );
       }
     }
   };
@@ -814,6 +892,7 @@ function App() {
         onSelectBoard={handleSelectBoard}
         onCreateBoard={handleCreateBoard}
         onToggleStar={handleToggleStar}
+        onLogout={handleLogout}
       />
     );
   }
@@ -911,7 +990,7 @@ function App() {
               return (
                 <div key={block.id} className="flex items-start gap-4">
                   {/* 블록 */}
-                  {block.id === 'feature' ? (
+                  {block.fixed_type === 'FEATURE' ? (
                     <div className="flex flex-col bg-[#282e33] rounded-lg min-w-[280px] max-w-[280px]">
                       <div className="flex items-center justify-between p-4 border-b border-gray-700">
                         <div className="flex items-center gap-2">
@@ -984,11 +1063,12 @@ function App() {
                         customBlockIndex < customBlocks.length - 1
                       }
                       availableTags={tags}
+                      boardId={currentBoardId}
                     />
                   )}
 
                   {/* Task와 Done 사이에 블록 추가 버튼 */}
-                  {block.id === 'task' && (
+                  {block.fixed_type === 'TASK' && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -1018,7 +1098,7 @@ function App() {
             setIsFeatureModalOpen(false);
             setSelectedFeature(null);
           }}
-          onAddSubtask={handleAddSubtask}
+          onAddSubtask={(title) => handleAddSubtask(selectedFeature!.id, title)}
           onUpdateFeature={handleUpdateFeature}
           onDelete={handleDeleteFeature}
           availableTags={tags}
@@ -1033,11 +1113,12 @@ function App() {
             setIsTaskModalOpen(false);
             setSelectedTask(null);
           }}
-          onUpdate={handleUpdateTask}
+          onUpdate={(updates) => selectedTask && handleUpdateTask(selectedTask.id, updates)}
           onDelete={handleDeleteTask}
           availableTags={tags}
           onCreateTag={handleCreateTag}
           availableMembers={availableMembers}
+          boardId={currentBoardId}
         />
 
         <AddBlockModal

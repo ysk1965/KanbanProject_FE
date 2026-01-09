@@ -60,6 +60,12 @@ class ApiClient {
       headers,
     };
 
+    // Request 로깅
+    console.log(`🚀 [API Request] ${options?.method || 'GET'} ${url}`, {
+      headers: { ...headers, Authorization: headers.Authorization ? '***' : undefined },
+      body: options?.body ? JSON.parse(options.body as string) : undefined,
+    });
+
     try {
       const response = await fetch(url, config);
 
@@ -69,6 +75,12 @@ class ApiClient {
           message: response.statusText,
           timestamp: new Date().toISOString(),
         }));
+
+        // Error Response 로깅
+        console.error(`❌ [API Error] ${options?.method || 'GET'} ${url}`, {
+          status: response.status,
+          error: errorData,
+        });
 
         // 토큰 만료시 자동 갱신 시도
         if (response.status === 401 && errorData.code === 'A004') {
@@ -84,12 +96,21 @@ class ApiClient {
 
       // 204 No Content 처리
       if (response.status === 204) {
+        console.log(`✅ [API Response] ${options?.method || 'GET'} ${url}`, { status: 204, data: null });
         return {} as T;
       }
 
-      return await response.json();
+      const data = await response.json();
+
+      // Success Response 로깅
+      console.log(`✅ [API Response] ${options?.method || 'GET'} ${url}`, {
+        status: response.status,
+        data,
+      });
+
+      return data;
     } catch (error) {
-      console.error(`API Request failed: ${endpoint}`, error);
+      console.error(`💥 [API Request failed] ${endpoint}`, error);
       throw error;
     }
   }

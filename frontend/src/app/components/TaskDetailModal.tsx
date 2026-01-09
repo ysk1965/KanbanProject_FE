@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Task, Tag, ChecklistItem } from '../types';
+import { checklistAPI } from '../utils/api';
 import {
   Dialog,
   DialogContent,
@@ -40,6 +41,7 @@ interface TaskDetailModalProps {
   availableTags: Tag[];
   onCreateTag: (name: string, color: string) => void;
   availableMembers: string[]; // 간단하게 이름 목록으로
+  boardId: string | null;
 }
 
 export function TaskDetailModal({
@@ -51,10 +53,11 @@ export function TaskDetailModal({
   availableTags,
   onCreateTag,
   availableMembers,
+  boardId,
 }: TaskDetailModalProps) {
   const [showTagInput, setShowTagInput] = useState(false);
   const [newTagName, setNewTagName] = useState('');
-  
+
   // 변경사항 추적
   const [initialTask, setInitialTask] = useState<Task | null>(null);
   const [editedTask, setEditedTask] = useState<Task | null>(null);
@@ -62,13 +65,36 @@ export function TaskDetailModal({
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
+  // 체크리스트 상태
+  const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
+
   useEffect(() => {
     if (task && open) {
       setInitialTask(JSON.parse(JSON.stringify(task)));
       setEditedTask(JSON.parse(JSON.stringify(task)));
       setHasChanges(false);
+      setChecklistItems([]); // 체크리스트 초기화
+
+      // 체크리스트 API 로드
+      if (boardId) {
+        checklistAPI.getChecklist(boardId, task.id)
+          .then((response) => {
+            const items: ChecklistItem[] = response.items.map((item) => ({
+              id: item.id,
+              title: item.title,
+              is_completed: item.is_completed,
+              position: item.position,
+              due_date: item.due_date,
+              assignee: item.assignee ? { id: item.assignee.id, name: item.assignee.name } : null,
+            }));
+            setChecklistItems(items);
+          })
+          .catch((error) => {
+            console.error('Failed to load checklist:', error);
+          });
+      }
     }
-  }, [task, open]);
+  }, [task, open, boardId]);
 
   useEffect(() => {
     if (initialTask && editedTask) {
@@ -135,51 +161,112 @@ export function TaskDetailModal({
     }
   };
 
-  // 체크리스트 상태 (로컬 관리 - API에서 별도 로드 필요)
-  const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
-
   // 체크리스트 관련 함수
-  const handleAddChecklistItem = (title: string) => {
-    if (!title.trim()) return;
+  const handleAddChecklistItem = async (title: string) => {
+    if (!title.trim() || !boardId || !task) return;
 
-    const maxPosition = checklistItems.length > 0
-      ? Math.max(...checklistItems.map((item) => item.position))
-      : -1;
+    try {
+      const response = await checklistAPI.addItem(boardId, task.id, {
+        title: title.trim(),
+        assignee_id: editedTask.assignee?.id,
+      });
 
-    // 현재 날짜 (YYYY-MM-DD 형식)
-    const today = new Date();
-    const todayString = today.toISOString().split('T')[0];
+      const newItem: ChecklistItem = {
+        id: response.id,
+        title: response.title,
+        is_completed: response.is_completed,
+        position: response.position,
+        due_date: response.due_date,
+        assignee: response.assignee ? { id: response.assignee.id, name: response.assignee.name } : null,
+      };
 
-    const newItem: ChecklistItem = {
-      id: `checklist_${Date.now()}`,
-      title: title.trim(),
-      is_completed: false,
-      position: maxPosition + 1,
-      due_date: todayString, // 디폴트 당일
-      assignee: editedTask.assignee, // 디폴트 카드의 담당자
-    };
+      const newItems = [...checklistItems, newItem];
+      setChecklistItems(newItems);
 
-    setChecklistItems([...checklistItems, newItem]);
+      // 부모 task 상태 업데이트
+      const newTotal = newItems.length;
+      const newCompleted = newItems.filter(item => item.is_completed).length;
+      onUpdate({ checklist_total: newTotal, checklist_completed: newCompleted });
+    } catch (error) {
+      console.error('Failed to add checklist item:', error);
+    }
   };
 
-  const handleToggleChecklistItem = (itemId: string) => {
-    setChecklistItems(
-      checklistItems.map((item) =>
-        item.id === itemId ? { ...item, is_completed: !item.is_completed } : item
-      )
+  const handleToggleChecklistItem = async (itemId: string) => {
+    console.log('handleToggleChecklistItem called:', { itemId, boardId, taskId: task?.id });
+    if (!boardId || !task) {
+      console.warn('handleToggleChecklistItem: boardId or task is null');
+      return;
+    }
+
+    // 낙관적 업데이트
+    const newItems = checklistItems.map((item) =>
+      item.id === itemId ? { ...item, is_completed: !item.is_completed } : item
     );
+    setChecklistItems(newItems);
+
+    // 부모 task 상태 업데이트
+    const newCompleted = newItems.filter(item => item.is_completed).length;
+    onUpdate({ checklist_total: newItems.length, checklist_completed: newCompleted });
+
+    try {
+      console.log('Calling checklistAPI.toggleItem:', { boardId, taskId: task.id, itemId });
+      await checklistAPI.toggleItem(boardId, task.id, itemId);
+      console.log('checklistAPI.toggleItem success');
+    } catch (error) {
+      console.error('Failed to toggle checklist item:', error);
+      // 롤백
+      const rolledBackItems = checklistItems.map((item) =>
+        item.id === itemId ? { ...item, is_completed: !item.is_completed } : item
+      );
+      setChecklistItems(rolledBackItems);
+      const rolledBackCompleted = rolledBackItems.filter(item => item.is_completed).length;
+      onUpdate({ checklist_total: rolledBackItems.length, checklist_completed: rolledBackCompleted });
+    }
   };
 
-  const handleUpdateChecklistItem = (itemId: string, updates: Partial<ChecklistItem>) => {
+  const handleUpdateChecklistItem = async (itemId: string, updates: Partial<ChecklistItem>) => {
+    if (!boardId || !task) return;
+
+    // 낙관적 업데이트
     setChecklistItems(
       checklistItems.map((item) =>
         item.id === itemId ? { ...item, ...updates } : item
       )
     );
+
+    try {
+      await checklistAPI.updateItem(boardId, task.id, itemId, {
+        title: updates.title,
+        assignee_id: updates.assignee?.id ?? null,
+        due_date: updates.due_date ?? null,
+      });
+    } catch (error) {
+      console.error('Failed to update checklist item:', error);
+    }
   };
 
-  const handleDeleteChecklistItem = (itemId: string) => {
-    setChecklistItems(checklistItems.filter((item) => item.id !== itemId));
+  const handleDeleteChecklistItem = async (itemId: string) => {
+    if (!boardId || !task) return;
+
+    const originalItems = [...checklistItems];
+    // 낙관적 업데이트
+    const newItems = checklistItems.filter((item) => item.id !== itemId);
+    setChecklistItems(newItems);
+
+    // 부모 task 상태 업데이트
+    const newCompleted = newItems.filter(item => item.is_completed).length;
+    onUpdate({ checklist_total: newItems.length, checklist_completed: newCompleted });
+
+    try {
+      await checklistAPI.deleteItem(boardId, task.id, itemId);
+    } catch (error) {
+      console.error('Failed to delete checklist item:', error);
+      // 롤백
+      setChecklistItems(originalItems);
+      const rolledBackCompleted = originalItems.filter(item => item.is_completed).length;
+      onUpdate({ checklist_total: originalItems.length, checklist_completed: rolledBackCompleted });
+    }
   };
 
   // 체크리스트 진행률 계산

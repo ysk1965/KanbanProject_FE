@@ -24,6 +24,7 @@ interface KanbanBlockProps {
   onMoveBlockRight?: () => void;
   canMoveLeft?: boolean;
   canMoveRight?: boolean;
+  boardId?: string | null;
 }
 
 export function KanbanBlock({
@@ -39,6 +40,7 @@ export function KanbanBlock({
   onMoveBlockRight,
   canMoveLeft,
   canMoveRight,
+  boardId,
 }: KanbanBlockProps) {
   const [{ isOver, canDrop }, drop] = useDrop<DragItem & { index: number; task: Task }, void, { isOver: boolean; canDrop: boolean }>({
     accept: 'task',
@@ -132,6 +134,7 @@ export function KanbanBlock({
             availableTags={availableTags}
             features={features}
             onMoveCard={handleMoveCard}
+            boardId={boardId}
           />
         ))}
         {/* 빈 블록 드롭 영역 */}
