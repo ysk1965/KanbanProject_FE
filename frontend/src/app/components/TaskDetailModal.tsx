@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Task, Priority, Tag, ChecklistItem } from '../types';
+import { Task, Tag, ChecklistItem } from '../types';
 import {
   Dialog,
   DialogContent,
@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from './ui/select';
 import { Badge } from './ui/badge';
-import { X, Plus, User, Trash2, Calendar, Clock, CheckSquare } from 'lucide-react';
+import { X, Plus, Trash2, Clock, CheckSquare } from 'lucide-react';
 
 interface TaskDetailModalProps {
   task: Task | null;
@@ -41,18 +41,6 @@ interface TaskDetailModalProps {
   onCreateTag: (name: string, color: string) => void;
   availableMembers: string[]; // 간단하게 이름 목록으로
 }
-
-const PRIORITY_COLORS = {
-  high: 'bg-red-100 text-red-700 border-red-300',
-  medium: 'bg-yellow-100 text-yellow-700 border-yellow-300',
-  low: 'bg-green-100 text-green-700 border-green-300',
-};
-
-const PRIORITY_LABELS = {
-  high: '높음',
-  medium: '보통',
-  low: '낮음',
-};
 
 export function TaskDetailModal({
   task,
@@ -66,7 +54,6 @@ export function TaskDetailModal({
 }: TaskDetailModalProps) {
   const [showTagInput, setShowTagInput] = useState(false);
   const [newTagName, setNewTagName] = useState('');
-  const [showMemberSelect, setShowMemberSelect] = useState(false);
   
   // 변경사항 추적
   const [initialTask, setInitialTask] = useState<Task | null>(null);
@@ -127,14 +114,15 @@ export function TaskDetailModal({
 
   const handleAddTag = (tagId: string) => {
     const currentTags = editedTask.tags || [];
-    if (!currentTags.includes(tagId)) {
-      updateEditedTask({ tags: [...currentTags, tagId] });
+    const tagToAdd = availableTags.find((t) => t.id === tagId);
+    if (tagToAdd && !currentTags.some((t) => t.id === tagId)) {
+      updateEditedTask({ tags: [...currentTags, tagToAdd] });
     }
   };
 
   const handleRemoveTag = (tagId: string) => {
     const currentTags = editedTask.tags || [];
-    updateEditedTask({ tags: currentTags.filter((t) => t !== tagId) });
+    updateEditedTask({ tags: currentTags.filter((t) => t.id !== tagId) });
   };
 
   const handleCreateNewTag = () => {
@@ -147,79 +135,62 @@ export function TaskDetailModal({
     }
   };
 
-  const handleAddParticipant = (memberName: string) => {
-    const currentParticipants = editedTask.participants || [];
-    if (!currentParticipants.includes(memberName)) {
-      updateEditedTask({ participants: [...currentParticipants, memberName] });
-    }
-    setShowMemberSelect(false);
-  };
-
-  const handleRemoveParticipant = (memberName: string) => {
-    const currentParticipants = editedTask.participants || [];
-    updateEditedTask({ participants: currentParticipants.filter((p) => p !== memberName) });
-  };
+  // 체크리스트 상태 (로컬 관리 - API에서 별도 로드 필요)
+  const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
 
   // 체크리스트 관련 함수
   const handleAddChecklistItem = (title: string) => {
     if (!title.trim()) return;
-    
-    const checklistItems = editedTask.checklistItems || [];
-    const maxOrder = checklistItems.length > 0 
-      ? Math.max(...checklistItems.map((item) => item.order)) 
+
+    const maxPosition = checklistItems.length > 0
+      ? Math.max(...checklistItems.map((item) => item.position))
       : -1;
-    
+
     // 현재 날짜 (YYYY-MM-DD 형식)
     const today = new Date();
     const todayString = today.toISOString().split('T')[0];
-    
+
     const newItem: ChecklistItem = {
       id: `checklist_${Date.now()}`,
       title: title.trim(),
-      isCompleted: false,
-      order: maxOrder + 1,
-      dueDate: todayString, // 디폴트 당일
+      is_completed: false,
+      position: maxPosition + 1,
+      due_date: todayString, // 디폴트 당일
       assignee: editedTask.assignee, // 디폴트 카드의 담당자
     };
-    
-    updateEditedTask({ checklistItems: [...checklistItems, newItem] });
+
+    setChecklistItems([...checklistItems, newItem]);
   };
 
   const handleToggleChecklistItem = (itemId: string) => {
-    const checklistItems = editedTask.checklistItems || [];
-    updateEditedTask({
-      checklistItems: checklistItems.map((item) =>
-        item.id === itemId ? { ...item, isCompleted: !item.isCompleted } : item
-      ),
-    });
+    setChecklistItems(
+      checklistItems.map((item) =>
+        item.id === itemId ? { ...item, is_completed: !item.is_completed } : item
+      )
+    );
   };
 
   const handleUpdateChecklistItem = (itemId: string, updates: Partial<ChecklistItem>) => {
-    const checklistItems = editedTask.checklistItems || [];
-    updateEditedTask({
-      checklistItems: checklistItems.map((item) =>
+    setChecklistItems(
+      checklistItems.map((item) =>
         item.id === itemId ? { ...item, ...updates } : item
-      ),
-    });
+      )
+    );
   };
 
   const handleDeleteChecklistItem = (itemId: string) => {
-    const checklistItems = editedTask.checklistItems || [];
-    updateEditedTask({
-      checklistItems: checklistItems.filter((item) => item.id !== itemId),
-    });
+    setChecklistItems(checklistItems.filter((item) => item.id !== itemId));
   };
 
   // 체크리스트 진행률 계산
-  const checklistItems = editedTask.checklistItems || [];
-  const completedChecklistCount = checklistItems.filter((item) => item.isCompleted).length;
-  const checklistProgress = checklistItems.length > 0 
-    ? Math.round((completedChecklistCount / checklistItems.length) * 100) 
+  const completedChecklistCount = checklistItems.filter((item) => item.is_completed).length;
+  const checklistProgress = checklistItems.length > 0
+    ? Math.round((completedChecklistCount / checklistItems.length) * 100)
     : 0;
 
-  const taskTags = availableTags.filter((tag) => editedTask.tags?.includes(tag.id));
+  const taskTags = editedTask.tags || [];
   const availableTagsToAdd = availableTags.filter(
-    (tag) => !editedTask.tags?.includes(tag.id)
+    (tag) => !taskTags.some((t) => t.id === tag.id)
   );
 
   return (
@@ -269,46 +240,24 @@ export function TaskDetailModal({
               />
             </div>
 
-            {/* 우선순위 & 마감일 */}
+            {/* 마감일 & 예상 시간 */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>우선순위</Label>
-                <Select
-                  value={editedTask.priority || 'medium'}
-                  onValueChange={(value) => updateEditedTask({ priority: value as Priority })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="설정되지 않음" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="high">
-                      <span className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-red-500" />
-                        높음
-                      </span>
-                    </SelectItem>
-                    <SelectItem value="medium">
-                      <span className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-yellow-500" />
-                        보통
-                      </span>
-                    </SelectItem>
-                    <SelectItem value="low">
-                      <span className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-green-500" />
-                        낮음
-                      </span>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
               <div className="space-y-2">
                 <Label>마감일</Label>
                 <Input
                   type="date"
-                  value={editedTask.dueDate || ''}
-                  onChange={(e) => updateEditedTask({ dueDate: e.target.value })}
+                  value={editedTask.due_date || ''}
+                  onChange={(e) => updateEditedTask({ due_date: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>예상 시간 (분)</Label>
+                <Input
+                  type="number"
+                  value={editedTask.estimated_minutes || ''}
+                  onChange={(e) => updateEditedTask({ estimated_minutes: e.target.value ? parseInt(e.target.value) : null })}
+                  placeholder="예: 60"
                 />
               </div>
             </div>
@@ -320,66 +269,12 @@ export function TaskDetailModal({
                 {editedTask.assignee ? (
                   <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg">
                     <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-xs text-white">
-                      {editedTask.assignee.charAt(0).toUpperCase()}
+                      {editedTask.assignee.name.charAt(0).toUpperCase()}
                     </div>
-                    <span className="text-sm">{editedTask.assignee}</span>
+                    <span className="text-sm">{editedTask.assignee.name}</span>
                   </div>
                 ) : (
                   <span className="text-sm text-gray-500">담당자 없음</span>
-                )}
-              </div>
-            </div>
-
-            {/* 참여자 */}
-            <div className="space-y-2">
-              <Label>참여자</Label>
-              <div className="flex flex-wrap gap-2">
-                {editedTask.participants?.map((participant) => (
-                  <div
-                    key={participant}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 rounded-full border border-purple-200"
-                  >
-                    <User className="h-3 w-3 text-purple-600" />
-                    <span className="text-sm text-purple-700">{participant}</span>
-                    <button
-                      onClick={() => handleRemoveParticipant(participant)}
-                      className="text-purple-400 hover:text-purple-600"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-                {showMemberSelect ? (
-                  <div className="flex gap-1">
-                    <Select onValueChange={handleAddParticipant}>
-                      <SelectTrigger className="w-[150px] h-8">
-                        <SelectValue placeholder="멤버 선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableMembers.map((member) => (
-                          <SelectItem key={member} value={member}>
-                            {member}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setShowMemberSelect(false)}
-                    >
-                      취소
-                    </Button>
-                  </div>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setShowMemberSelect(true)}
-                  >
-                    <Plus className="h-3 w-3 mr-1" />
-                    참여자 추가
-                  </Button>
                 )}
               </div>
             </div>
@@ -482,7 +377,7 @@ export function TaskDetailModal({
             {/* 체크리스트 항목들 */}
             <div className="space-y-2">
               {checklistItems
-                .sort((a, b) => a.order - b.order)
+                .sort((a, b) => a.position - b.position)
                 .map((item) => (
                   <ChecklistItemRow
                     key={item.id}
@@ -600,11 +495,11 @@ function ChecklistItemRow({
 
   // 마감일 상태 확인
   const isOverdue =
-    item.dueDate && new Date(item.dueDate) < new Date() && !item.isCompleted;
+    item.due_date && new Date(item.due_date) < new Date() && !item.is_completed;
   const isDueSoon =
-    item.dueDate &&
-    new Date(item.dueDate).getTime() - new Date().getTime() < 86400000 &&
-    !item.isCompleted;
+    item.due_date &&
+    new Date(item.due_date).getTime() - new Date().getTime() < 86400000 &&
+    !item.is_completed;
 
   return (
     <div className="group flex items-start gap-2 p-2 rounded hover:bg-gray-50 border border-transparent hover:border-gray-200">
@@ -612,10 +507,10 @@ function ChecklistItemRow({
       <button
         onClick={onToggle}
         className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 mt-0.5 ${
-          item.isCompleted ? 'bg-green-500' : 'bg-gray-300 hover:bg-gray-400'
+          item.is_completed ? 'bg-green-500' : 'bg-gray-300 hover:bg-gray-400'
         }`}
       >
-        {item.isCompleted && (
+        {item.is_completed && (
           <svg
             className="w-3 h-3 text-white"
             fill="none"
@@ -644,7 +539,7 @@ function ChecklistItemRow({
         ) : (
           <div
             className={`text-xs cursor-pointer ${
-              item.isCompleted ? 'line-through text-gray-500' : 'text-gray-900'
+              item.is_completed ? 'line-through text-gray-500' : 'text-gray-900'
             }`}
             onClick={() => setIsEditing(true)}
           >
@@ -654,7 +549,7 @@ function ChecklistItemRow({
 
         {/* 메타 정보 */}
         <div className="flex items-center gap-2 mt-1">
-          {item.dueDate && (
+          {item.due_date && (
             <div
               className={`flex items-center gap-1 text-xs ${
                 isOverdue
@@ -665,7 +560,7 @@ function ChecklistItemRow({
               }`}
             >
               <Clock className="h-3 w-3" />
-              {new Date(item.dueDate).toLocaleDateString('ko-KR', {
+              {new Date(item.due_date).toLocaleDateString('ko-KR', {
                 month: 'short',
                 day: 'numeric',
               })}
@@ -674,7 +569,7 @@ function ChecklistItemRow({
           {item.assignee && (
             <div className="flex items-center gap-1">
               <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-xs text-white">
-                {item.assignee.charAt(0).toUpperCase()}
+                {item.assignee.name.charAt(0).toUpperCase()}
               </div>
             </div>
           )}
@@ -700,16 +595,25 @@ function ChecklistItemRow({
                 </div>
                 <Input
                   type="date"
-                  value={item.dueDate || ''}
-                  onChange={(e) => onUpdate({ dueDate: e.target.value })}
+                  value={item.due_date || ''}
+                  onChange={(e) => onUpdate({ due_date: e.target.value })}
                   className="text-xs h-7"
                 />
                 <div className="text-xs font-semibold text-gray-500 px-2 py-1 mt-2">
                   담당자
                 </div>
                 <Select
-                  value={item.assignee || 'none'}
-                  onValueChange={(value) => onUpdate({ assignee: value === 'none' ? undefined : value })}
+                  value={item.assignee?.id || 'none'}
+                  onValueChange={(value) => {
+                    if (value === 'none') {
+                      onUpdate({ assignee: null });
+                    } else {
+                      const member = availableMembers.find((m) => m === value);
+                      if (member) {
+                        onUpdate({ assignee: { id: value, name: member, profile_image: null } });
+                      }
+                    }
+                  }}
                 >
                   <SelectTrigger className="h-7 text-xs">
                     <SelectValue placeholder="없음" />

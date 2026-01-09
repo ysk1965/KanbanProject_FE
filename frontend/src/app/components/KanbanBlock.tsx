@@ -61,7 +61,7 @@ export function KanbanBlock({
   };
 
   const isFeatureBlock = block.id === 'feature';
-  const isFixedBlock = block.type === 'fixed';
+  const isFixedBlock = block.type === 'FIXED';
 
   return (
     <div

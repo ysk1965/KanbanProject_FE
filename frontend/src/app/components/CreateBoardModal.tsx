@@ -7,36 +7,48 @@ import {
   DialogDescription,
 } from './ui/dialog';
 import { Input } from './ui/input';
+import { Textarea } from './ui/textarea';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
+
+// 보드 색상 gradient 생성
+const BOARD_GRADIENTS = [
+  { name: 'Purple', value: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
+  { name: 'Pink', value: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
+  { name: 'Blue', value: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
+  { name: 'Orange', value: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' },
+  { name: 'Teal', value: 'linear-gradient(135deg, #30cfd0 0%, #330867 100%)' },
+  { name: 'Pastel', value: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)' },
+];
 
 interface CreateBoardModalProps {
   open: boolean;
   onClose: () => void;
-  onCreateBoard: (name: string, color: string) => void;
-  availableColors: Array<{ name: string; value: string }>;
+  onCreateBoard: (name: string, description?: string) => void;
 }
 
 export function CreateBoardModal({
   open,
   onClose,
   onCreateBoard,
-  availableColors,
 }: CreateBoardModalProps) {
   const [boardName, setBoardName] = useState('');
-  const [selectedColor, setSelectedColor] = useState(availableColors[0].value);
+  const [description, setDescription] = useState('');
+  const [selectedGradient, setSelectedGradient] = useState(BOARD_GRADIENTS[0].value);
 
   const handleCreate = () => {
     if (boardName.trim()) {
-      onCreateBoard(boardName.trim(), selectedColor);
+      onCreateBoard(boardName.trim(), description.trim() || undefined);
       setBoardName('');
-      setSelectedColor(availableColors[0].value);
+      setDescription('');
+      setSelectedGradient(BOARD_GRADIENTS[0].value);
     }
   };
 
   const handleClose = () => {
     setBoardName('');
-    setSelectedColor(availableColors[0].value);
+    setDescription('');
+    setSelectedGradient(BOARD_GRADIENTS[0].value);
     onClose();
   };
 
@@ -46,7 +58,7 @@ export function CreateBoardModal({
         <DialogHeader>
           <DialogTitle className="text-white">Create board</DialogTitle>
           <DialogDescription className="text-gray-400">
-            새로운 칸반보드를 생성합니다
+            Create a new kanban board for your team
           </DialogDescription>
         </DialogHeader>
 
@@ -56,10 +68,10 @@ export function CreateBoardModal({
             <Label className="text-gray-300">Board preview</Label>
             <div
               className="h-28 rounded-lg flex items-center justify-center"
-              style={{ background: selectedColor }}
+              style={{ background: selectedGradient }}
             >
               <span className="text-white font-semibold text-base px-4 py-2 bg-black/20 rounded">
-                {boardName || '보드 이름'}
+                {boardName || 'Board name'}
               </span>
             </div>
           </div>
@@ -73,32 +85,47 @@ export function CreateBoardModal({
               id="board-name"
               value={boardName}
               onChange={(e) => setBoardName(e.target.value)}
-              placeholder="예: 프로젝트 관리"
+              placeholder="e.g., Project Management"
               className="bg-[#1d2125] border-gray-600 text-white placeholder:text-gray-500 focus:border-blue-500"
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
+                if (e.key === 'Enter' && !e.shiftKey) {
                   handleCreate();
                 }
               }}
             />
           </div>
 
-          {/* 색상 선택 */}
+          {/* 설명 */}
+          <div className="space-y-2">
+            <Label htmlFor="board-description" className="text-gray-300">
+              Description
+            </Label>
+            <Textarea
+              id="board-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Brief description of the board (optional)"
+              className="bg-[#1d2125] border-gray-600 text-white placeholder:text-gray-500 focus:border-blue-500 resize-none"
+              rows={3}
+            />
+          </div>
+
+          {/* 색상 선택 (미리보기용) */}
           <div className="space-y-2">
             <Label className="text-gray-300">Background color</Label>
             <div className="grid grid-cols-3 gap-2">
-              {availableColors.map((color) => (
+              {BOARD_GRADIENTS.map((gradient) => (
                 <button
-                  key={color.name}
-                  onClick={() => setSelectedColor(color.value)}
+                  key={gradient.name}
+                  onClick={() => setSelectedGradient(gradient.value)}
                   className={`h-12 rounded-lg transition-all ${
-                    selectedColor === color.value
+                    selectedGradient === gradient.value
                       ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-[#282e33] scale-105'
                       : 'hover:scale-105'
                   }`}
-                  style={{ background: color.value }}
+                  style={{ background: gradient.value }}
                 >
-                  <span className="sr-only">{color.name}</span>
+                  <span className="sr-only">{gradient.name}</span>
                 </button>
               ))}
             </div>

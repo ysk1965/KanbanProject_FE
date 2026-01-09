@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { Plus, Users, Settings, Filter, ArrowLeft, Bell } from 'lucide-react';
-import { Block, Feature, Task, Priority, Tag } from './types';
+import { Block, Feature, Task, Priority, Tag, Board, InviteLink, Subscription, PricingPlan, ActivityLog } from './types';
 import { KanbanBlock } from './components/KanbanBlock';
 import { FeatureCard } from './components/FeatureCard';
 import { FeatureDetailModal } from './components/FeatureDetailModal';
@@ -12,7 +12,7 @@ import { AddFeatureModal } from './components/AddFeatureModal';
 import { TrialBanner } from './components/TrialBanner';
 import { FilterModal, FilterOptions } from './components/FilterModal';
 import { ShareBoardModal, BoardMember as ShareBoardMember, MemberRole } from './components/ShareBoardModal';
-import { BoardListPage, Board } from './components/BoardListPage';
+import { BoardListPage } from './components/BoardListPage';
 import { LoginPage } from './components/LoginPage';
 import { SubscriptionModal } from './components/SubscriptionModal';
 import { ActivityLogModal } from './components/ActivityLogModal';
@@ -32,7 +32,6 @@ import {
   pricingService
 } from './utils/services';
 import { initializeMockData } from './utils/mockData';
-import { InviteLink, Subscription, PricingPlan, ActivityLog } from './utils/api';
 
 // Feature 색상 팔레트
 export const FEATURE_COLORS = [
@@ -211,9 +210,9 @@ function App() {
     // TODO: 보드별 데이터 로드
   };
 
-  const handleCreateBoard = async (name: string, color: string) => {
+  const handleCreateBoard = async (name: string, description?: string) => {
     try {
-      const newBoard = await boardService.createBoard(name, color);
+      const newBoard = await boardService.createBoard(name, description);
       setBoards([...boards, newBoard]);
     } catch (error) {
       console.error('Failed to create board:', error);
@@ -224,13 +223,13 @@ function App() {
     const board = boards.find((b) => b.id === boardId);
     if (!board) return;
 
-    const newStarredStatus = !board.isStarred;
-    
+    const newStarredStatus = !board.is_starred;
+
     try {
       await boardService.toggleStar(boardId, newStarredStatus);
       setBoards(
         boards.map((b) =>
-          b.id === boardId ? { ...b, isStarred: newStarredStatus } : b
+          b.id === boardId ? { ...b, is_starred: newStarredStatus } : b
         )
       );
     } catch (error) {
@@ -342,7 +341,7 @@ function App() {
   };
 
   const sortedBlocks = useMemo(() => {
-    return [...blocks].sort((a, b) => a.order - b.order);
+    return [...blocks].sort((a, b) => a.position - b.position);
   }, [blocks]);
 
   // 블록 관리
@@ -353,20 +352,21 @@ function App() {
 
     if (!taskBlock || !doneBlock) return;
 
-    const newOrder = taskBlock.order + 1;
+    const newPosition = taskBlock.position + 1;
 
     const newBlock: Block = {
       id: `custom_${Date.now()}`,
-      type: 'custom',
+      type: 'CUSTOM',
+      fixed_type: null,
       name,
       color,
-      order: newOrder,
+      position: newPosition,
     };
 
-    // 기존 커스텀 블록들의 order 조정
+    // 기존 커스텀 블록들의 position 조정
     const updatedBlocks = blocks.map((block) => {
-      if (block.order >= newOrder && block.id !== 'task') {
-        return { ...block, order: block.order + 1 };
+      if (block.position >= newPosition && block.id !== 'task') {
+        return { ...block, position: block.position + 1 };
       }
       return block;
     });
@@ -376,19 +376,19 @@ function App() {
 
   const handleDeleteBlock = (blockId: string) => {
     const blockToDelete = blocks.find((b) => b.id === blockId);
-    if (!blockToDelete || blockToDelete.type === 'fixed') return;
+    if (!blockToDelete || blockToDelete.type === 'FIXED') return;
 
     // 해당 블록의 모든 Task를 Task 블록으로 이동
     const updatedTasks = tasks.map((task) =>
-      task.currentBlock === blockId ? { ...task, currentBlock: 'task' } : task
+      task.block_id === blockId ? { ...task, block_id: 'task' } : task
     );
 
-    // 블록 삭제 및 order 재조정
+    // 블록 삭제 및 position 재조정
     const updatedBlocks = blocks
       .filter((b) => b.id !== blockId)
       .map((block) => {
-        if (block.order > blockToDelete.order) {
-          return { ...block, order: block.order - 1 };
+        if (block.position > blockToDelete.position) {
+          return { ...block, position: block.position - 1 };
         }
         return block;
       });
@@ -402,21 +402,21 @@ function App() {
     if (blockIndex === -1) return;
 
     const block = sortedBlocks[blockIndex];
-    if (block.type === 'fixed') return; // 고정 블록은 이동 불가
+    if (block.type === 'FIXED') return; // 고정 블록은 이동 불가
 
     const swapIndex = direction === 'left' ? blockIndex - 1 : blockIndex + 1;
     if (swapIndex < 0 || swapIndex >= sortedBlocks.length) return;
 
     const swapBlock = sortedBlocks[swapIndex];
-    if (swapBlock.type === 'fixed') return; // 고정 블록과는 교환 불가
+    if (swapBlock.type === 'FIXED') return; // 고정 블록과는 교환 불가
 
-    // order 교환
+    // position 교환
     const updatedBlocks = blocks.map((b) => {
       if (b.id === block.id) {
-        return { ...b, order: swapBlock.order };
+        return { ...b, position: swapBlock.position };
       }
       if (b.id === swapBlock.id) {
-        return { ...b, order: block.order };
+        return { ...b, position: block.position };
       }
       return b;
     });
@@ -430,12 +430,17 @@ function App() {
       id: `f${Date.now()}`,
       title,
       description,
-      status: 'feature',
-      subtaskIds: [],
-      completedCount: 0,
-      totalCount: 0,
-      boardId: currentBoardId || 'board_1',
       color: getRandomFeatureColor(),
+      assignee: null,
+      priority: null,
+      due_date: null,
+      status: 'ACTIVE',
+      total_tasks: 0,
+      completed_tasks: 0,
+      progress_percentage: 0,
+      position: features.length,
+      tags: [],
+      created_at: new Date().toISOString(),
     };
     setFeatures([...features, newFeature]);
   };
@@ -457,7 +462,7 @@ function App() {
   const handleDeleteFeature = (featureId: string) => {
     // Feature와 관련된 Task들도 함께 삭제
     setFeatures(features.filter((f) => f.id !== featureId));
-    setTasks(tasks.filter((t) => t.featureId !== featureId));
+    setTasks(tasks.filter((t) => t.feature_id !== featureId));
     setIsFeatureModalOpen(false);
     setSelectedFeature(null);
   };
@@ -470,21 +475,25 @@ function App() {
     const newTask: Task = {
       id: `t${Date.now()}`,
       title: taskTitle,
-      featureId,
-      createdBy: '김철수',
-      currentBlock: 'task',
-      isCompleted: false,
-      boardId: currentBoardId || 'board_1',
-      order: tasks.filter((t) => t.currentBlock === 'task').length,
+      feature_id: featureId,
+      feature_title: feature.title,
+      feature_color: feature.color,
+      block_id: 'task',
+      assignee: null,
+      due_date: null,
+      estimated_minutes: null,
+      is_completed: false,
+      position: tasks.filter((t) => t.block_id === 'task').length,
+      tags: [],
+      created_at: new Date().toISOString(),
     };
 
     // Task 추가
     setTasks([...tasks, newTask]);
 
-    // Feature의 subtaskIds 업데이트
+    // Feature의 total_tasks 업데이트
     handleUpdateFeature(featureId, {
-      subtaskIds: [...feature.subtaskIds, newTask.id],
-      totalCount: feature.totalCount + 1,
+      total_tasks: feature.total_tasks + 1,
     });
   };
 
@@ -497,11 +506,11 @@ function App() {
     setTasks(tasks.map((t) => (t.id === taskId ? { ...t, ...updates } : t)));
 
     // Task의 체크리스트가 업데이트되었을 경우
-    if (updates.checklistItems !== undefined) {
+    if (updates.checklist_total !== undefined || updates.checklist_completed !== undefined) {
       const task = tasks.find((t) => t.id === taskId);
       if (task) {
         // Feature 진행률 업데이트 (Task 자체는 변경 없음)
-        updateFeatureProgress(task.featureId);
+        updateFeatureProgress(task.feature_id);
       }
     }
   };
@@ -510,14 +519,16 @@ function App() {
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
 
-    const feature = features.find((f) => f.id === task.featureId);
+    const feature = features.find((f) => f.id === task.feature_id);
     if (feature) {
+      const newTotalTasks = feature.total_tasks - 1;
+      const newCompletedTasks = task.is_completed
+        ? feature.completed_tasks - 1
+        : feature.completed_tasks;
       handleUpdateFeature(feature.id, {
-        subtaskIds: feature.subtaskIds.filter((id) => id !== taskId),
-        totalCount: feature.totalCount - 1,
-        completedCount: task.isCompleted
-          ? feature.completedCount - 1
-          : feature.completedCount,
+        total_tasks: newTotalTasks,
+        completed_tasks: newCompletedTasks,
+        progress_percentage: newTotalTasks > 0 ? Math.round((newCompletedTasks / newTotalTasks) * 100) : 0,
       });
     }
 
@@ -530,28 +541,29 @@ function App() {
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
 
-    const wasCompleted = task.isCompleted;
+    const wasCompleted = task.is_completed;
     const isNowCompleted = targetBlockId === 'done';
 
     // Task 이동
     setTasks(
       tasks.map((t) =>
         t.id === taskId
-          ? { ...t, currentBlock: targetBlockId, isCompleted: isNowCompleted }
+          ? { ...t, block_id: targetBlockId, is_completed: isNowCompleted }
           : t
       )
     );
 
     // Feature 진행률 업데이트
     if (wasCompleted !== isNowCompleted) {
-      const feature = features.find((f) => f.id === task.featureId);
+      const feature = features.find((f) => f.id === task.feature_id);
       if (feature) {
-        const newCompletedCount = isNowCompleted
-          ? feature.completedCount + 1
-          : feature.completedCount - 1;
+        const newCompletedTasks = isNowCompleted
+          ? feature.completed_tasks + 1
+          : feature.completed_tasks - 1;
 
         handleUpdateFeature(feature.id, {
-          completedCount: newCompletedCount,
+          completed_tasks: newCompletedTasks,
+          progress_percentage: feature.total_tasks > 0 ? Math.round((newCompletedTasks / feature.total_tasks) * 100) : 0,
         });
       }
     }
@@ -560,28 +572,28 @@ function App() {
   const handleReorderTask = (
     taskId: string,
     blockId: string,
-    newOrder: number
+    newPosition: number
   ) => {
-    const tasksInBlock = tasks.filter((t) => t.currentBlock === blockId);
+    const tasksInBlock = tasks.filter((t) => t.block_id === blockId);
     const taskToMove = tasksInBlock.find((t) => t.id === taskId);
     if (!taskToMove) return;
 
-    const oldOrder = taskToMove.order;
+    const oldPosition = taskToMove.position;
 
     const updatedTasks = tasks.map((task) => {
       if (task.id === taskId) {
-        return { ...task, order: newOrder };
+        return { ...task, position: newPosition };
       }
-      if (task.currentBlock === blockId) {
-        if (oldOrder < newOrder) {
+      if (task.block_id === blockId) {
+        if (oldPosition < newPosition) {
           // 아래로 이동: 사이의 Task들을 위로
-          if (task.order > oldOrder && task.order <= newOrder) {
-            return { ...task, order: task.order - 1 };
+          if (task.position > oldPosition && task.position <= newPosition) {
+            return { ...task, position: task.position - 1 };
           }
         } else {
           // 위로 이동: 사이의 Task들을 아래로
-          if (task.order >= newOrder && task.order < oldOrder) {
-            return { ...task, order: task.order + 1 };
+          if (task.position >= newPosition && task.position < oldPosition) {
+            return { ...task, position: task.position + 1 };
           }
         }
       }
@@ -596,21 +608,23 @@ function App() {
     const feature = features.find((f) => f.id === featureId);
     if (!feature) return;
 
-    const featureTasks = tasks.filter((t) => t.featureId === featureId);
-    const completedTasks = featureTasks.filter(
-      (t) => t.currentBlock === 'done'
-    );
+    const featureTasks = tasks.filter((t) => t.feature_id === featureId);
+    const completedTasks = featureTasks.filter((t) => t.block_id === 'done');
+    const totalTasks = featureTasks.length;
+    const completedCount = completedTasks.length;
 
     handleUpdateFeature(featureId, {
-      completedCount: completedTasks.length,
+      total_tasks: totalTasks,
+      completed_tasks: completedCount,
+      progress_percentage: totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0,
     });
   };
 
   // 블록별 Task 가져오기
   const getTasksForBlock = (blockId: string) => {
     return filteredTasks
-      .filter((task) => task.currentBlock === blockId)
-      .sort((a, b) => a.order - b.order);
+      .filter((task) => task.block_id === blockId)
+      .sort((a, b) => a.position - b.position);
   };
 
   // 태그 생성
@@ -641,9 +655,7 @@ function App() {
       if (
         filterOptions.members.length > 0 &&
         !filterOptions.members.some(
-          (m) =>
-            feature.assignee === m ||
-            feature.participants?.includes(m)
+          (m) => feature.assignee?.name === m
         )
       ) {
         return false;
@@ -652,16 +664,16 @@ function App() {
       // 태그 필터
       if (
         filterOptions.tags.length > 0 &&
-        !filterOptions.tags.some((t) => feature.tags?.includes(t))
+        !filterOptions.tags.some((tagId) => feature.tags?.some((t) => t.id === tagId))
       ) {
         return false;
       }
 
       // 마감일 필터
-      if (filterOptions.dueDate.length > 0 && feature.dueDate) {
+      if (filterOptions.dueDate.length > 0 && feature.due_date) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const dueDate = new Date(feature.dueDate);
+        const dueDate = new Date(feature.due_date);
         dueDate.setHours(0, 0, 0, 0);
 
         const diffDays = Math.ceil(
@@ -705,11 +717,7 @@ function App() {
       // 멤버 필터
       if (
         filterOptions.members.length > 0 &&
-        !filterOptions.members.some(
-          (m) =>
-            task.assignee === m ||
-            task.participants?.includes(m)
-        )
+        !filterOptions.members.some((m) => task.assignee?.name === m)
       ) {
         return false;
       }
@@ -717,7 +725,7 @@ function App() {
       // Feature 필터
       if (
         filterOptions.features.length > 0 &&
-        !filterOptions.features.includes(task.featureId)
+        !filterOptions.features.includes(task.feature_id)
       ) {
         return false;
       }
@@ -725,7 +733,7 @@ function App() {
       // 태그 필터
       if (
         filterOptions.tags.length > 0 &&
-        !filterOptions.tags.some((t) => task.tags?.includes(t))
+        !filterOptions.tags.some((tagId) => task.tags?.some((t) => t.id === tagId))
       ) {
         return false;
       }
@@ -733,8 +741,8 @@ function App() {
       // 카드 상태 필터
       if (filterOptions.cardStatus.length > 0) {
         const hasStatus =
-          (filterOptions.cardStatus.includes('completed') && task.isCompleted) ||
-          (filterOptions.cardStatus.includes('incomplete') && !task.isCompleted);
+          (filterOptions.cardStatus.includes('completed') && task.is_completed) ||
+          (filterOptions.cardStatus.includes('incomplete') && !task.is_completed);
 
         if (!hasStatus) {
           return false;
@@ -742,10 +750,10 @@ function App() {
       }
 
       // 마감일 필터
-      if (filterOptions.dueDate.length > 0 && task.dueDate) {
+      if (filterOptions.dueDate.length > 0 && task.due_date) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const dueDate = new Date(task.dueDate);
+        const dueDate = new Date(task.due_date);
         dueDate.setHours(0, 0, 0, 0);
 
         const diffDays = Math.ceil(
@@ -894,7 +902,7 @@ function App() {
           <div className="flex gap-4 min-w-max">
             {sortedBlocks.map((block, index) => {
               const customBlocks = sortedBlocks.filter(
-                (b) => b.type === 'custom'
+                (b) => b.type === 'CUSTOM'
               );
               const customBlockIndex = customBlocks.findIndex(
                 (b) => b.id === block.id
@@ -922,7 +930,7 @@ function App() {
                             feature={feature}
                             onClick={() => handleFeatureClick(feature)}
                             availableTags={tags}
-                            tasks={filteredTasks.filter((task) => task.featureId === feature.id)}
+                            tasks={filteredTasks.filter((task) => task.feature_id === feature.id)}
                           />
                         ))}
                       </div>
@@ -948,31 +956,31 @@ function App() {
                       onMoveTask={handleMoveTask}
                       onReorderTask={handleReorderTask}
                       onEditBlock={
-                        block.type === 'custom'
+                        block.type === 'CUSTOM'
                           ? () => console.log('Edit block', block.id)
                           : undefined
                       }
                       onDeleteBlock={
-                        block.type === 'custom'
+                        block.type === 'CUSTOM'
                           ? () => handleDeleteBlock(block.id)
                           : undefined
                       }
                       onMoveBlockLeft={
-                        block.type === 'custom' && customBlockIndex > 0
+                        block.type === 'CUSTOM' && customBlockIndex > 0
                           ? () => handleMoveBlock(block.id, 'left')
                           : undefined
                       }
                       onMoveBlockRight={
-                        block.type === 'custom' &&
+                        block.type === 'CUSTOM' &&
                         customBlockIndex < customBlocks.length - 1
                           ? () => handleMoveBlock(block.id, 'right')
                           : undefined
                       }
                       canMoveLeft={
-                        block.type === 'custom' && customBlockIndex > 0
+                        block.type === 'CUSTOM' && customBlockIndex > 0
                       }
                       canMoveRight={
-                        block.type === 'custom' &&
+                        block.type === 'CUSTOM' &&
                         customBlockIndex < customBlocks.length - 1
                       }
                       availableTags={tags}
@@ -1001,7 +1009,7 @@ function App() {
           feature={selectedFeature}
           tasks={
             selectedFeature
-              ? tasks.filter((t) => t.featureId === selectedFeature.id)
+              ? tasks.filter((t) => t.feature_id === selectedFeature.id)
               : []
           }
           blocks={blocks}

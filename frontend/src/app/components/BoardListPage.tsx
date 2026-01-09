@@ -1,32 +1,30 @@
 import { useState } from 'react';
 import { Star, Plus, Users } from 'lucide-react';
-import { Button } from './ui/button';
 import { CreateBoardModal } from './CreateBoardModal';
-
-export interface Board {
-  id: string;
-  name: string;
-  color: string;
-  isStarred: boolean;
-  memberCount: number;
-  lastAccessed?: string;
-}
+import type { Board } from '../types';
 
 interface BoardListPageProps {
   boards: Board[];
   onSelectBoard: (boardId: string) => void;
-  onCreateBoard: (name: string, color: string) => void;
+  onCreateBoard: (name: string, description?: string) => void;
   onToggleStar: (boardId: string) => void;
 }
 
-const BOARD_COLORS = [
-  { name: 'Blue', value: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
-  { name: 'Purple', value: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
-  { name: 'Green', value: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
-  { name: 'Orange', value: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' },
-  { name: 'Pink', value: 'linear-gradient(135deg, #30cfd0 0%, #330867 100%)' },
-  { name: 'Teal', value: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)' },
+// 보드 색상 gradient 생성
+const BOARD_GRADIENTS = [
+  'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+  'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+  'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+  'linear-gradient(135deg, #30cfd0 0%, #330867 100%)',
+  'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
 ];
+
+function getBoardGradient(boardId: string): string {
+  // boardId 해시로 일관된 색상 선택
+  const hash = boardId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return BOARD_GRADIENTS[hash % BOARD_GRADIENTS.length];
+}
 
 export function BoardListPage({
   boards,
@@ -36,7 +34,7 @@ export function BoardListPage({
 }: BoardListPageProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  const starredBoards = boards.filter((b) => b.isStarred);
+  const starredBoards = boards.filter((b) => b.is_starred);
 
   return (
     <div className="min-h-screen bg-[#1d2125] text-white">
@@ -45,16 +43,16 @@ export function BoardListPage({
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 bg-gradient-to-br from-teal-400 to-teal-600 rounded flex items-center justify-center">
-              <span className="text-2xl font-bold text-white">T</span>
+              <span className="text-2xl font-bold text-white">K</span>
             </div>
             <div>
-              <h1 className="text-xl font-semibold">Trello Workspace</h1>
+              <h1 className="text-xl font-semibold">Kanban Workspace</h1>
               <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5">
                 <span className="px-1.5 py-0.5 bg-blue-600 text-white rounded text-[10px]">
                   Premium
                 </span>
                 <span className="flex items-center gap-1">
-                  🔒 Private
+                  Private
                 </span>
               </div>
             </div>
@@ -118,11 +116,10 @@ export function BoardListPage({
       <CreateBoardModal
         open={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onCreateBoard={(name, color) => {
-          onCreateBoard(name, color);
+        onCreateBoard={(name, description) => {
+          onCreateBoard(name, description);
           setIsCreateModalOpen(false);
         }}
-        availableColors={BOARD_COLORS}
       />
     </div>
   );
@@ -143,7 +140,7 @@ function BoardCard({ board, onClick, onToggleStar }: BoardCardProps) {
       {/* 배경 그라데이션 */}
       <div
         className="absolute inset-0"
-        style={{ background: board.color }}
+        style={{ background: getBoardGradient(board.id) }}
       />
 
       {/* 호버 오버레이 */}
@@ -159,7 +156,7 @@ function BoardCard({ board, onClick, onToggleStar }: BoardCardProps) {
       >
         <Star
           className={`h-4 w-4 ${
-            board.isStarred
+            board.is_starred
               ? 'fill-yellow-400 text-yellow-400'
               : 'text-white/70 hover:text-white'
           }`}
@@ -169,10 +166,10 @@ function BoardCard({ board, onClick, onToggleStar }: BoardCardProps) {
       {/* 보드 이름 */}
       <div className="absolute bottom-0 left-0 right-0 p-3">
         <h3 className="font-semibold text-white text-sm mb-1">{board.name}</h3>
-        {board.memberCount > 0 && (
+        {board.member_count > 0 && (
           <div className="flex items-center gap-1 text-xs text-white/70">
             <Users className="h-3 w-3" />
-            <span>{board.memberCount} members</span>
+            <span>{board.member_count} members</span>
           </div>
         )}
       </div>

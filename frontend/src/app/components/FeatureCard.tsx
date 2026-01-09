@@ -1,6 +1,6 @@
 import { Feature, Task } from '../types';
 import { Progress } from './ui/progress';
-import { Calendar, AlertCircle, User, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { useState } from 'react';
 
@@ -11,24 +11,22 @@ interface FeatureCardProps {
   tasks?: Task[]; // 서브태스크 목록
 }
 
-const priorityColors = {
-  high: 'bg-red-100 border-red-300 text-red-700',
-  medium: 'bg-yellow-100 border-yellow-300 text-yellow-700',
-  low: 'bg-green-100 border-green-300 text-green-700',
+const priorityColors: Record<string, string> = {
+  HIGH: 'bg-red-100 border-red-300 text-red-700',
+  MEDIUM: 'bg-yellow-100 border-yellow-300 text-yellow-700',
+  LOW: 'bg-green-100 border-green-300 text-green-700',
 };
 
-const priorityLabels = {
-  high: '높음',
-  medium: '보통',
-  low: '낮음',
+const priorityLabels: Record<string, string> = {
+  HIGH: '높음',
+  MEDIUM: '보통',
+  LOW: '낮음',
 };
 
 export function FeatureCard({ feature, onClick, availableTags = [], tasks = [] }: FeatureCardProps) {
-  const progressPercent = feature.totalCount > 0 
-    ? (feature.completedCount / feature.totalCount) * 100 
-    : 0;
+  const progressPercent = feature.progress_percentage;
 
-  const featureTags = availableTags.filter((tag) => feature.tags?.includes(tag.id));
+  const featureTags = feature.tags || [];
   
   // Feature 색상 (기본값: 보라색)
   const featureColor = feature.color || '#8B5CF6';
@@ -77,7 +75,7 @@ export function FeatureCard({ feature, onClick, availableTags = [], tasks = [] }
       <div className="mb-3">
         <div className="flex items-center justify-between mb-1">
           <span className="text-xs text-gray-600">
-            {feature.completedCount}/{feature.totalCount} 완료
+            {feature.completed_tasks}/{feature.total_tasks} 완료
           </span>
           <span className="text-xs font-semibold text-purple-600">
             {Math.round(progressPercent)}%
@@ -98,46 +96,23 @@ export function FeatureCard({ feature, onClick, availableTags = [], tasks = [] }
             {priorityLabels[feature.priority]}
           </span>
         )}
-        {feature.dueDate && (
+        {feature.due_date && (
           <span className="text-xs text-gray-500 flex items-center gap-1">
             <Calendar className="h-3 w-3" />
-            {feature.dueDate}
+            {feature.due_date}
           </span>
         )}
       </div>
 
-      {/* 담당자 및 참여자 */}
-      <div className="mt-3 flex items-center gap-2">
-        {feature.assignee && (
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center text-xs text-white">
-              {feature.assignee.charAt(0).toUpperCase()}
-            </div>
-            <span className="text-xs text-gray-600">{feature.assignee}</span>
+      {/* 담당자 */}
+      {feature.assignee && (
+        <div className="mt-3 flex items-center gap-2">
+          <div className="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center text-xs text-white">
+            {feature.assignee.name.charAt(0).toUpperCase()}
           </div>
-        )}
-        {feature.participants && feature.participants.length > 0 && (
-          <div className="flex items-center gap-1 ml-auto">
-            <User className="h-3 w-3 text-gray-400" />
-            <div className="flex -space-x-2">
-              {feature.participants.slice(0, 3).map((participant, idx) => (
-                <div
-                  key={idx}
-                  className="w-6 h-6 rounded-full bg-purple-400 flex items-center justify-center text-xs text-white border-2 border-white"
-                  title={participant}
-                >
-                  {participant.charAt(0).toUpperCase()}
-                </div>
-              ))}
-              {feature.participants.length > 3 && (
-                <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs text-gray-700 border-2 border-white">
-                  +{feature.participants.length - 3}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+          <span className="text-xs text-gray-600">{feature.assignee.name}</span>
+        </div>
+      )}
 
       {/* 서브태스크 목록 */}
       {tasks.length > 0 && (
@@ -156,10 +131,10 @@ export function FeatureCard({ feature, onClick, availableTags = [], tasks = [] }
               {tasks.map((task) => (
                 <div key={task.id} className="flex items-start gap-2 p-2 rounded bg-gray-50 hover:bg-gray-100">
                   <div
-                    className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${ task.isCompleted ? 'bg-green-500' : 'bg-gray-300'
+                    className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${task.is_completed ? 'bg-green-500' : 'bg-gray-300'
                     }`}
                   >
-                    {task.isCompleted && (
+                    {task.is_completed && (
                       <svg className="w-3 h-3 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
                         <path d="M5 13l4 4L19 7"></path>
                       </svg>
@@ -167,13 +142,13 @@ export function FeatureCard({ feature, onClick, availableTags = [], tasks = [] }
                   </div>
                   <div className="flex-1 min-w-0">
                     <span
-                      className={`text-xs block ${ task.isCompleted ? 'text-gray-500 line-through' : 'text-gray-900'
+                      className={`text-xs block ${task.is_completed ? 'text-gray-500 line-through' : 'text-gray-900'
                       }`}
                     >
                       {task.title}
                     </span>
                     <span className="text-xs text-gray-400">
-                      {task.currentBlock}
+                      {task.block_name || task.block_id}
                     </span>
                   </div>
                 </div>

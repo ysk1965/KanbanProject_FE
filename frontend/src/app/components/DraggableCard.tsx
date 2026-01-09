@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { useDrag, useDrop } from 'react-dnd';
 import { Task, DragItem, Tag, Feature } from '../types';
-import { GripVertical, User, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
+import { GripVertical, Calendar } from 'lucide-react';
 import { Badge } from './ui/badge';
 
 interface DraggableCardProps {
@@ -24,7 +24,6 @@ export function DraggableCard({
   onMoveCard,
 }: DraggableCardProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const [isExpanded, setIsExpanded] = useState(false);
 
   const [{ isDragging }, drag] = useDrag({
     type: 'task',
@@ -98,10 +97,10 @@ export function DraggableCard({
 
   drag(drop(ref));
 
-  const taskTags = availableTags.filter((tag) => task.tags?.includes(tag.id));
-  
-  // 연결된 Feature 찾기
-  const linkedFeature = features.find((f) => f.id === task.featureId);
+  const taskTags = task.tags || [];
+
+  // 연결된 Feature 찾기 (task has feature_id now)
+  const linkedFeature = features.find((f) => f.id === task.feature_id);
   
   // Feature 색상 (기본값: 보라색)
   const featureColor = linkedFeature?.color || '#8B5CF6';
@@ -132,18 +131,12 @@ export function DraggableCard({
     return dueDate >= today && dueDate <= threeDaysLater;
   };
 
-  // 확장 버튼 클릭 핸들러
-  const handleExpandClick = (e: React.MouseEvent) => {
-    e.stopPropagation(); // 부모의 onClick 이벤트 방지
-    setIsExpanded(!isExpanded);
-  };
-
   return (
     <div
       ref={ref}
       className={`bg-white rounded-lg p-3 border shadow-sm cursor-pointer hover:shadow-md transition-all ${
         isDragging ? 'opacity-30' : ''
-      } ${task.isCompleted ? 'border-green-300 bg-green-50' : 'border-gray-200'} ${
+      } ${task.is_completed ? 'border-green-300 bg-green-50' : 'border-gray-200'} ${
         isOver && canDrop ? 'border-t-4 border-t-blue-500' : ''
       }`}
       onClick={onClick}
@@ -191,150 +184,46 @@ export function DraggableCard({
           )}
 
           {/* 마감일 표시 */}
-          {task.dueDate && (
+          {task.due_date && (
             <div className="mt-2 flex items-center gap-1">
               <div
-                className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs ${ isOverdue(task.dueDate)
+                className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs ${isOverdue(task.due_date)
                     ? 'bg-red-100 text-red-700'
-                    : isDueSoon(task.dueDate)
+                    : isDueSoon(task.due_date)
                     ? 'bg-yellow-100 text-yellow-700'
                     : 'bg-gray-100 text-gray-700'
                 }`}
               >
                 <Calendar className="h-3 w-3" />
-                <span>{formatDueDate(task.dueDate)}</span>
+                <span>{formatDueDate(task.due_date)}</span>
               </div>
             </div>
           )}
 
           {/* 체크리스트 진행률 */}
-          {task.checklistItems && task.checklistItems.length > 0 && (
+          {task.checklist_total && task.checklist_total > 0 && (
             <div className="mt-2 flex items-center gap-2">
               <div className="flex-1 bg-gray-200 rounded-full h-1.5">
                 <div
                   className="bg-blue-500 h-1.5 rounded-full"
                   style={{
-                    width: `${ Math.round(
-                        (task.checklistItems.filter((item) => item.isCompleted).length /
-                          task.checklistItems.length) *
-                          100
-                      )
-                    }%`,
+                    width: `${Math.round(((task.checklist_completed || 0) / task.checklist_total) * 100)}%`,
                   }}
                 />
               </div>
               <span className="text-xs text-gray-600">
-                {task.checklistItems.filter((item) => item.isCompleted).length}/
-                {task.checklistItems.length}
+                {task.checklist_completed || 0}/{task.checklist_total}
               </span>
             </div>
           )}
 
-          {/* 담당자 및 참여자 */}
-          <div className="mt-2 flex items-center gap-1 flex-wrap">
-            {task.assignee && (
+          {/* 담당자 */}
+          {task.assignee && (
+            <div className="mt-2 flex items-center gap-1 flex-wrap">
               <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-xs text-white">
-                {task.assignee.charAt(0).toUpperCase()}
+                {task.assignee.name.charAt(0).toUpperCase()}
               </div>
-            )}
-            {task.participants && task.participants.length > 0 && (
-              <div className="flex items-center gap-1">
-                {task.participants.slice(0, 3).map((participant, idx) => (
-                  <div
-                    key={idx}
-                    className="w-6 h-6 rounded-full bg-purple-400 flex items-center justify-center text-xs text-white border-2 border-white"
-                    title={participant}
-                  >
-                    {participant.charAt(0).toUpperCase()}
-                  </div>
-                ))}
-                {task.participants.length > 3 && (
-                  <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs text-gray-700">
-                    +{task.participants.length - 3}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* 체크리스트 확장 보기 */}
-          {task.checklistItems && task.checklistItems.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-gray-200">
-              <div
-                className="flex items-center gap-2 cursor-pointer hover:text-gray-700"
-                onClick={handleExpandClick}
-              >
-                <span className="text-xs text-gray-500">
-                  Cooperation
-                </span>
-                {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
-              </div>
-              {isExpanded && (
-                <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
-                  {task.checklistItems
-                    .sort((a, b) => a.order - b.order)
-                    .map((item) => {
-                      const itemIsOverdue = item.dueDate && new Date(item.dueDate) < new Date() && !item.isCompleted;
-                      const itemIsDueSoon = item.dueDate && new Date(item.dueDate).getTime() - new Date().getTime() < 86400000 && !item.isCompleted;
-                      
-                      return (
-                        <div key={item.id} className="flex items-start gap-2 p-1.5 rounded hover:bg-gray-50">
-                          <div
-                            className={`w-3 h-3 rounded flex items-center justify-center flex-shrink-0 mt-0.5 ${ item.isCompleted ? 'bg-green-500' : 'bg-gray-300'
-                            }`}
-                          >
-                            {item.isCompleted && (
-                              <svg
-                                className="w-2 h-2 text-white"
-                                fill="none"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="2"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path d="M5 13l4 4L19 7"></path>
-                              </svg>
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div
-                              className={`text-xs ${ item.isCompleted ? 'line-through text-gray-500' : 'text-gray-900'
-                              }`}
-                            >
-                              {item.title}
-                            </div>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              {item.dueDate && (
-                                <div
-                                  className={`flex items-center gap-1 text-xs ${ itemIsOverdue
-                                      ? 'text-red-600'
-                                      : itemIsDueSoon
-                                      ? 'text-orange-600'
-                                      : 'text-gray-500'
-                                  }`}
-                                >
-                                  <Calendar className="h-2.5 w-2.5" />
-                                  {new Date(item.dueDate).toLocaleDateString('ko-KR', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                  })}
-                                </div>
-                              )}
-                              {item.assignee && (
-                                <div className="flex items-center gap-1">
-                                  <div className="w-3 h-3 rounded-full bg-blue-500 flex items-center justify-center text-xs text-white">
-                                    <span className="text-[8px]">{item.assignee.charAt(0).toUpperCase()}</span>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
-              )}
+              <span className="text-xs text-gray-600">{task.assignee.name}</span>
             </div>
           )}
         </div>

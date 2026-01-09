@@ -23,7 +23,7 @@ import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
-import { Plus, Check, ArrowRight, X, User, Trash2 } from 'lucide-react';
+import { Plus, Check, ArrowRight, X, Trash2 } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -62,7 +62,6 @@ export function FeatureDetailModal({
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [showTagInput, setShowTagInput] = useState(false);
   const [newTagName, setNewTagName] = useState('');
-  const [showMemberSelect, setShowMemberSelect] = useState(false);
 
   // 변경사항 추적
   const [initialFeature, setInitialFeature] = useState<Feature | null>(null);
@@ -88,9 +87,7 @@ export function FeatureDetailModal({
 
   if (!feature || !editedFeature) return null;
 
-  const progressPercent = feature.totalCount > 0
-    ? (feature.completedCount / feature.totalCount) * 100
-    : 0;
+  const progressPercent = feature.progress_percentage;
 
   const handleClose = () => {
     if (hasChanges) {
@@ -134,14 +131,15 @@ export function FeatureDetailModal({
 
   const handleAddTag = (tagId: string) => {
     const currentTags = editedFeature.tags || [];
-    if (!currentTags.includes(tagId)) {
-      updateEditedFeature({ tags: [...currentTags, tagId] });
+    const tagToAdd = availableTags.find((t) => t.id === tagId);
+    if (tagToAdd && !currentTags.some((t) => t.id === tagId)) {
+      updateEditedFeature({ tags: [...currentTags, tagToAdd] });
     }
   };
 
   const handleRemoveTag = (tagId: string) => {
     const currentTags = editedFeature.tags || [];
-    updateEditedFeature({ tags: currentTags.filter((t) => t !== tagId) });
+    updateEditedFeature({ tags: currentTags.filter((t) => t.id !== tagId) });
   };
 
   const handleCreateNewTag = () => {
@@ -154,26 +152,13 @@ export function FeatureDetailModal({
     }
   };
 
-  const handleAddParticipant = (memberName: string) => {
-    const currentParticipants = editedFeature.participants || [];
-    if (!currentParticipants.includes(memberName)) {
-      updateEditedFeature({ participants: [...currentParticipants, memberName] });
-    }
-    setShowMemberSelect(false);
-  };
-
-  const handleRemoveParticipant = (memberName: string) => {
-    const currentParticipants = editedFeature.participants || [];
-    updateEditedFeature({ participants: currentParticipants.filter((p) => p !== memberName) });
-  };
-
   const getBlockName = (blockId: string) => {
     return blocks.find((b) => b.id === blockId)?.name || blockId;
   };
 
-  const featureTags = availableTags.filter((tag) => editedFeature.tags?.includes(tag.id));
+  const featureTags = editedFeature.tags || [];
   const availableTagsToAdd = availableTags.filter(
-    (tag) => !editedFeature.tags?.includes(tag.id)
+    (tag) => !featureTags.some((t) => t.id === tag.id)
   );
 
   return (
@@ -225,26 +210,26 @@ export function FeatureDetailModal({
               <div className="space-y-2">
                 <Label>우선순위</Label>
                 <Select
-                  value={editedFeature.priority || 'medium'}
+                  value={editedFeature.priority || 'MEDIUM'}
                   onValueChange={(value) => updateEditedFeature({ priority: value as Priority })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="설정되지 않음" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="high">
+                    <SelectItem value="HIGH">
                       <span className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-red-500" />
                         높음
                       </span>
                     </SelectItem>
-                    <SelectItem value="medium">
+                    <SelectItem value="MEDIUM">
                       <span className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-yellow-500" />
                         보통
                       </span>
                     </SelectItem>
-                    <SelectItem value="low">
+                    <SelectItem value="LOW">
                       <span className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-green-500" />
                         낮음
@@ -258,8 +243,8 @@ export function FeatureDetailModal({
                 <Label>마감일</Label>
                 <Input
                   type="date"
-                  value={editedFeature.dueDate || ''}
-                  onChange={(e) => updateEditedFeature({ dueDate: e.target.value })}
+                  value={editedFeature.due_date || ''}
+                  onChange={(e) => updateEditedFeature({ due_date: e.target.value })}
                 />
               </div>
             </div>
@@ -271,9 +256,9 @@ export function FeatureDetailModal({
                 {editedFeature.assignee ? (
                   <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg">
                     <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-xs text-white">
-                      {editedFeature.assignee.charAt(0).toUpperCase()}
+                      {editedFeature.assignee.name.charAt(0).toUpperCase()}
                     </div>
-                    <span className="text-sm">{editedFeature.assignee}</span>
+                    <span className="text-sm">{editedFeature.assignee.name}</span>
                   </div>
                 ) : (
                   <span className="text-sm text-gray-500">담당자 없음</span>
@@ -296,60 +281,6 @@ export function FeatureDetailModal({
                     onClick={() => updateEditedFeature({ color })}
                   />
                 ))}
-              </div>
-            </div>
-
-            {/* 참여자 */}
-            <div className="space-y-2">
-              <Label>참여자</Label>
-              <div className="flex flex-wrap gap-2">
-                {editedFeature.participants?.map((participant) => (
-                  <div
-                    key={participant}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 rounded-full border border-purple-200"
-                  >
-                    <User className="h-3 w-3 text-purple-600" />
-                    <span className="text-sm text-purple-700">{participant}</span>
-                    <button
-                      onClick={() => handleRemoveParticipant(participant)}
-                      className="text-purple-400 hover:text-purple-600"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-                {showMemberSelect ? (
-                  <div className="flex gap-1">
-                    <Select onValueChange={handleAddParticipant}>
-                      <SelectTrigger className="w-[150px] h-8">
-                        <SelectValue placeholder="멤버 선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableMembers.map((member) => (
-                          <SelectItem key={member} value={member}>
-                            {member}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setShowMemberSelect(false)}
-                    >
-                      취소
-                    </Button>
-                  </div>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setShowMemberSelect(true)}
-                  >
-                    <Plus className="h-3 w-3 mr-1" />
-                    참여자 추가
-                  </Button>
-                )}
               </div>
             </div>
 
@@ -442,7 +373,7 @@ export function FeatureDetailModal({
                   📋 서브태스크
                 </span>
                 <span className="text-sm font-semibold text-purple-600">
-                  {feature.completedCount}/{feature.totalCount} 완료
+                  {feature.completed_tasks}/{feature.total_tasks} 완료
                 </span>
               </div>
               <Progress value={progressPercent} className="h-2 mb-1" />
@@ -457,13 +388,13 @@ export function FeatureDetailModal({
                 <div
                   key={task.id}
                   className={`flex items-center gap-3 p-3 rounded-lg border ${
-                    task.isCompleted
+                    task.is_completed
                       ? 'bg-green-50 border-green-200'
                       : 'bg-gray-50 border-gray-200'
                   }`}
                 >
                   <div className="flex-shrink-0">
-                    {task.isCompleted ? (
+                    {task.is_completed ? (
                       <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
                         <Check className="h-3 w-3 text-white" />
                       </div>
@@ -474,7 +405,7 @@ export function FeatureDetailModal({
                   <div className="flex-1 min-w-0">
                     <p
                       className={`text-sm ${
-                        task.isCompleted
+                        task.is_completed
                           ? 'line-through text-gray-500'
                           : 'text-gray-900'
                       }`}
@@ -483,14 +414,14 @@ export function FeatureDetailModal({
                     </p>
                     {task.assignee && (
                       <p className="text-xs text-gray-500 mt-1">
-                        @{task.assignee}
+                        @{task.assignee.name}
                       </p>
                     )}
                   </div>
                   <div className="flex items-center gap-1 text-xs text-gray-500">
                     <ArrowRight className="h-3 w-3" />
                     <span className="font-medium">
-                      {getBlockName(task.currentBlock)}
+                      {getBlockName(task.block_id)}
                     </span>
                   </div>
                 </div>
