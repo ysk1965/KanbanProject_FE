@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Feature, Task, Tag, Priority } from '../types';
-import { FEATURE_COLORS } from '../App';
+import { FEATURE_COLORS } from '../constants';
 import {
   Dialog,
   DialogContent,

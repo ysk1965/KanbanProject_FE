@@ -335,6 +335,13 @@ export interface MembersListResponse {
   members: MemberResponse[];
 }
 
+export interface InviteResultResponse {
+  type: 'DIRECT_ADD' | 'EMAIL_SENT';
+  member?: MemberResponse;  // DIRECT_ADD인 경우
+  email?: string;           // EMAIL_SENT인 경우
+  role?: string;            // EMAIL_SENT인 경우
+}
+
 export interface InviteLinkResponse {
   id: string;
   code: string;
@@ -421,6 +428,12 @@ export const authAPI = {
 
   login: async (data: { email: string; password: string }) => {
     const response = await apiClient.post<AuthResponse>('/auth/login', data, true);
+    setTokens(response.access_token, response.refresh_token);
+    return response;
+  },
+
+  googleLogin: async (idToken: string) => {
+    const response = await apiClient.post<AuthResponse>('/auth/google', { id_token: idToken }, true);
     setTokens(response.access_token, response.refresh_token);
     return response;
   },
@@ -724,7 +737,7 @@ export const memberAPI = {
   },
 
   inviteMember: async (boardId: string, data: { email: string; role: 'ADMIN' | 'MEMBER' | 'VIEWER' }) => {
-    return apiClient.post<MemberResponse>(`/boards/${boardId}/members/invite`, data);
+    return apiClient.post<InviteResultResponse>(`/boards/${boardId}/members/invite`, data);
   },
 
   updateMemberRole: async (

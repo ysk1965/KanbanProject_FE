@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from './ui/select';
 import { Badge } from './ui/badge';
-import { X, Link as LinkIcon, Copy, Check, UserPlus, Trash2, Plus } from 'lucide-react';
+import { X, Link as LinkIcon, Copy, Check, UserPlus, Trash2, Plus, Loader2 } from 'lucide-react';
 import { InviteLink } from '../utils/api';
 
 export type MemberRole = 'owner' | 'admin' | 'member' | 'observer';
@@ -40,7 +40,7 @@ interface ShareBoardModalProps {
   currentUserId: string;
   // 초대 링크 관련
   inviteLinks?: InviteLink[];
-  onCreateInviteLink?: (role: string, maxUses: number, expiresIn: string) => Promise<void>;
+  onCreateInviteLink?: (role: string, maxUses: number, expiresIn: string) => Promise<InviteLink>;
   onDeleteInviteLink?: (linkId: string) => Promise<void>;
 }
 
@@ -74,6 +74,8 @@ export function ShareBoardModal({
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<MemberRole>('member');
   const [linkCopied, setLinkCopied] = useState(false);
+  const [isCreatingLink, setIsCreatingLink] = useState(false);
+  const [copyMessage, setCopyMessage] = useState<string | null>(null);
 
   const handleInvite = () => {
     if (inviteEmail.trim()) {
@@ -83,12 +85,45 @@ export function ShareBoardModal({
     }
   };
 
-  const handleCopyLink = () => {
-    // 실제로는 보드 링크를 복사해야 하지만, 여기서는 데모용
-    const boardLink = `${window.location.origin}/board/demo-board-id`;
-    navigator.clipboard.writeText(boardLink);
+  const handleCopyLink = async () => {
+    // 첫 번째 활성화된 초대 링크 사용
+    let activeLink = inviteLinks?.find(link => link.is_active);
+
+    // 활성화된 링크가 없으면 새로 생성
+    if (!activeLink && onCreateInviteLink) {
+      try {
+        setIsCreatingLink(true);
+        const newLink = await onCreateInviteLink('VIEWER', 0, '7d'); // Observer 역할, 무제한 사용, 7일 후 만료
+        // 생성된 링크 바로 사용
+        copyToClipboard(newLink.code);
+        return;
+      } catch (error) {
+        console.error('Failed to create invite link:', error);
+        setCopyMessage('링크 생성에 실패했습니다');
+        setTimeout(() => setCopyMessage(null), 3000);
+        return;
+      } finally {
+        setIsCreatingLink(false);
+      }
+    }
+
+    if (activeLink) {
+      copyToClipboard(activeLink.code);
+    } else {
+      setCopyMessage('초대 링크를 생성할 수 없습니다');
+      setTimeout(() => setCopyMessage(null), 3000);
+    }
+  };
+
+  const copyToClipboard = (code: string) => {
+    const inviteUrl = `${window.location.origin}/invite/${code}`;
+    navigator.clipboard.writeText(inviteUrl);
     setLinkCopied(true);
-    setTimeout(() => setLinkCopied(false), 2000);
+    setCopyMessage('링크가 클립보드에 복사되었습니다!');
+    setTimeout(() => {
+      setLinkCopied(false);
+      setCopyMessage(null);
+    }, 3000);
   };
 
   const currentUser = members.find((m) => m.userId === currentUserId);
@@ -154,8 +189,12 @@ export function ShareBoardModal({
                       Observer
                     </button>
                     <span className="text-gray-500">•</span>
-                    <button className="text-sm text-blue-400 hover:underline">
-                      Copy link
+                    <button
+                      className="text-sm text-blue-400 hover:underline disabled:opacity-50"
+                      onClick={handleCopyLink}
+                      disabled={isCreatingLink}
+                    >
+                      {isCreatingLink ? '생성 중...' : linkCopied ? 'Copied!' : 'Copy link'}
                     </button>
                   </div>
                 </div>
@@ -164,10 +203,13 @@ export function ShareBoardModal({
                 variant="ghost"
                 size="sm"
                 onClick={handleCopyLink}
+                disabled={isCreatingLink}
                 className="text-gray-300 hover:text-white hover:bg-gray-700"
               >
-                {linkCopied ? (
-                  <Check className="h-4 w-4" />
+                {isCreatingLink ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : linkCopied ? (
+                  <Check className="h-4 w-4 text-green-400" />
                 ) : (
                   <Copy className="h-4 w-4" />
                 )}
@@ -288,6 +330,18 @@ export function ShareBoardModal({
             Close
           </Button>
         </div>
+
+        {/* 복사 알림 토스트 */}
+        {copyMessage && (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg border border-gray-600 flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 z-50">
+            {linkCopied ? (
+              <Check className="h-4 w-4 text-green-400" />
+            ) : (
+              <LinkIcon className="h-4 w-4 text-gray-400" />
+            )}
+            <span className="text-sm">{copyMessage}</span>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

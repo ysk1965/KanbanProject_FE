@@ -87,7 +87,7 @@ export function KanbanBlock({
       e.dataTransfer.setDragImage(blockRef.current, 140, 20);
     }
 
-    startBlockDrag(block);
+    startBlockDrag(block, blockIndex);
   };
 
   // 블록 드래그 종료
@@ -216,17 +216,17 @@ export function KanbanBlock({
     const draggedBlock = state.draggedBlock;
     if (!draggedBlock || draggedBlock.id === block.id) return;
 
-    // 드래그된 블록의 원래 인덱스와 현재 인덱스를 사용해 이동
-    const originalIndex = state.draggedBlock ? blockIndex : -1;
-    const targetIndex = state.blockPlaceholderIndex ?? blockIndex;
+    // 드래그된 블록의 원래 인덱스와 타겟 인덱스를 사용해 이동
+    const originalIndex = state.sourceBlockIndex;
+    const targetIndex = state.blockPlaceholderIndex;
 
-    if (onMoveBlockDrag && originalIndex !== targetIndex) {
-      // 현재는 hover에서 처리하므로 여기서는 정리만
+    if (onMoveBlockDrag && originalIndex !== null && targetIndex !== null && originalIndex !== targetIndex) {
+      onMoveBlockDrag(originalIndex, targetIndex);
     }
 
     clearBlockPlaceholder();
     endBlockDrag();
-  }, [state.draggedBlock, state.blockPlaceholderIndex, block.id, blockIndex, onMoveBlockDrag, clearBlockPlaceholder, endBlockDrag]);
+  }, [state.draggedBlock, state.sourceBlockIndex, state.blockPlaceholderIndex, block.id, onMoveBlockDrag, clearBlockPlaceholder, endBlockDrag]);
 
   // 플레이스홀더 JSX
   const placeholderElement = (
@@ -391,12 +391,8 @@ export function KanbanBlock({
             />
           </div>
         ))}
-        {/* 맨 끝에 플레이스홀더 */}
+        {/* 맨 끝에 플레이스홀더 (빈 블록 포함) */}
         {taskPlaceholderInThisBlock && placeholderIndex >= tasks.length && (
-          placeholderElement
-        )}
-        {/* 빈 블록에 플레이스홀더 */}
-        {tasks.length === 0 && taskPlaceholderInThisBlock && (
           placeholderElement
         )}
       </div>

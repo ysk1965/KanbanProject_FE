@@ -225,6 +225,17 @@ export interface InviteLink {
 }
 
 // ========================================
+// 초대 결과 타입
+// ========================================
+
+export interface InviteResult {
+  type: 'DIRECT_ADD' | 'EMAIL_SENT';
+  member?: BoardMember;  // DIRECT_ADD인 경우
+  email?: string;        // EMAIL_SENT인 경우
+  role?: string;         // EMAIL_SENT인 경우
+}
+
+// ========================================
 // 활동 로그 타입
 // ========================================
 

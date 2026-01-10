@@ -30,6 +30,7 @@ import type {
   Tag,
   BoardMember,
   InviteLink,
+  InviteResult,
   Subscription,
   ActivityLog,
   PricingPlan,
@@ -757,10 +758,34 @@ export const memberService = {
     boardId: string,
     email: string,
     role: 'ADMIN' | 'MEMBER' | 'VIEWER'
-  ): Promise<BoardMember> => {
+  ): Promise<InviteResult> => {
     // 멤버 초대는 mock 폴백 없이 API 에러를 그대로 throw
-    const member = await memberAPI.inviteMember(boardId, { email, role });
-    return member;
+    const result = await memberAPI.inviteMember(boardId, { email, role });
+
+    // API 응답을 InviteResult 형식으로 변환
+    if (result.type === 'DIRECT_ADD' && result.member) {
+      return {
+        type: 'DIRECT_ADD',
+        member: {
+          id: result.member.id,
+          user: {
+            id: result.member.user.id,
+            email: result.member.user.email,
+            name: result.member.user.name,
+            profile_image: result.member.user.profile_image,
+          },
+          role: result.member.role,
+          joined_at: result.member.joined_at,
+          invited_by: result.member.invited_by,
+        },
+      };
+    } else {
+      return {
+        type: 'EMAIL_SENT',
+        email: result.email,
+        role: result.role,
+      };
+    }
   },
 
   updateMemberRole: async (
@@ -862,6 +887,17 @@ export const authService = {
     }
   },
 
+  googleLogin: async (idToken: string) => {
+    try {
+      const response = await authAPI.googleLogin(idToken);
+      localStorage.setItem('user', JSON.stringify(response.user));
+      return response;
+    } catch (error) {
+      console.warn('Google login failed', error);
+      throw error;
+    }
+  },
+
   logout: async () => {
     try {
       await authAPI.logout();
@@ -909,66 +945,25 @@ export const inviteLinkService = {
       expires_in_hours?: number | null;
     }
   ): Promise<InviteLink> => {
-    try {
-      const link = await inviteLinkAPI.createInviteLink(boardId, data);
-      return link;
-    } catch (error) {
-      console.warn('API failed, using mock data for create invite link', error);
-      if (USE_MOCK_ON_ERROR) {
-        const links = loadFromLocalStorage('kanban_invite_links', []);
-        const code = Math.random().toString(36).substring(2, 14);
-        const newLink: InviteLink = {
-          id: `link-${Date.now()}`,
-          code,
-          role: data.role,
-          max_uses: data.max_uses || null,
-          used_count: 0,
-          expires_at: data.expires_in_hours
-            ? new Date(Date.now() + data.expires_in_hours * 60 * 60 * 1000).toISOString()
-            : null,
-          is_active: true,
-          created_by: { id: 'user-1', name: '나' },
-          created_at: new Date().toISOString(),
-        };
-        const updatedLinks = [...links, newLink];
-        saveToLocalStorage('kanban_invite_links', updatedLinks);
-        return newLink;
-      }
-      throw error;
-    }
+    // 초대 링크는 반드시 백엔드 API를 통해 생성해야 함 (mock 사용 안함)
+    const link = await inviteLinkAPI.createInviteLink(boardId, data);
+    return link;
   },
 
   deleteInviteLink: async (boardId: string, linkId: string): Promise<void> => {
-    try {
-      await inviteLinkAPI.deleteInviteLink(boardId, linkId);
-    } catch (error) {
-      console.warn('API failed, using mock data for delete invite link', error);
-      if (USE_MOCK_ON_ERROR) {
-        const links = loadFromLocalStorage('kanban_invite_links', []);
-        const updatedLinks = links.filter((l: InviteLink) => l.id !== linkId);
-        saveToLocalStorage('kanban_invite_links', updatedLinks);
-        return;
-      }
-      throw error;
-    }
+    await inviteLinkAPI.deleteInviteLink(boardId, linkId);
   },
 
   getInviteLinkInfo: async (code: string) => {
-    try {
-      const info = await inviteLinkAPI.getInviteLinkInfo(code);
-      return info;
-    } catch (error) {
-      throw error;
-    }
+    // 초대 링크 유효성은 반드시 백엔드에서 확인해야 함 (mock 사용 안함)
+    const info = await inviteLinkAPI.getInviteLinkInfo(code);
+    return info;
   },
 
   acceptInvite: async (code: string) => {
-    try {
-      const result = await inviteLinkAPI.acceptInvite(code);
-      return result;
-    } catch (error) {
-      throw error;
-    }
+    // 초대 수락은 반드시 백엔드에서 처리해야 함 (mock 사용 안함)
+    const result = await inviteLinkAPI.acceptInvite(code);
+    return result;
   },
 };
 

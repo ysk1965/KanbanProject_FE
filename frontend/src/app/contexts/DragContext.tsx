@@ -14,6 +14,7 @@ interface DragState {
 
   // Block 드래그 상태
   draggedBlock: Block | null;
+  sourceBlockIndex: number | null;
   blockPlaceholderIndex: number | null;
 }
 
@@ -25,7 +26,7 @@ interface DragContextValue {
   clearTaskPlaceholder: () => void;
   endTaskDrag: () => void;
   // Block 드래그 액션
-  startBlockDrag: (block: Block) => void;
+  startBlockDrag: (block: Block, index: number) => void;
   updateBlockPlaceholder: (index: number) => void;
   clearBlockPlaceholder: () => void;
   endBlockDrag: () => void;
@@ -36,6 +37,7 @@ const initialState: DragState = {
   sourceBlockId: null,
   taskPlaceholder: null,
   draggedBlock: null,
+  sourceBlockIndex: null,
   blockPlaceholderIndex: null,
 };
 
@@ -77,10 +79,11 @@ export function DragProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Block 드래그 액션
-  const startBlockDrag = useCallback((block: Block) => {
+  const startBlockDrag = useCallback((block: Block, index: number) => {
     setState((prev) => ({
       ...prev,
       draggedBlock: block,
+      sourceBlockIndex: index,
     }));
   }, []);
 
@@ -102,6 +105,7 @@ export function DragProvider({ children }: { children: ReactNode }) {
     setState((prev) => ({
       ...prev,
       draggedBlock: null,
+      sourceBlockIndex: null,
       blockPlaceholderIndex: null,
     }));
   }, []);
