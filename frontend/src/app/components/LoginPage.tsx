@@ -1,17 +1,24 @@
 import { useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { Button } from './ui/button';
-import { Mail, Lock, User } from 'lucide-react';
+import { Mail, Lock, User, Users, ArrowRight } from 'lucide-react';
+
+interface InviteInfo {
+  boardName: string;
+  role: string;
+  inviterName?: string;
+}
 
 interface LoginPageProps {
   onLogin: (email: string, password: string) => Promise<void>;
   onSignup: (email: string, password: string, name: string) => Promise<void>;
   onGoogleLogin?: (idToken: string) => Promise<void>;
   onBack?: () => void;
+  inviteInfo?: InviteInfo | null;
 }
 
-export function LoginPage({ onLogin, onSignup, onGoogleLogin, onBack }: LoginPageProps) {
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+export function LoginPage({ onLogin, onSignup, onGoogleLogin, onBack, inviteInfo }: LoginPageProps) {
+  const [mode, setMode] = useState<'login' | 'signup'>(inviteInfo ? 'signup' : 'login');
   const [email, setEmail] = useState('');
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [password, setPassword] = useState('');
@@ -37,13 +44,51 @@ export function LoginPage({ onLogin, onSignup, onGoogleLogin, onBack }: LoginPag
     }
   };
 
+  const getRoleDisplay = (role: string) => {
+    const roleMap: Record<string, string> = {
+      ADMIN: 'Admin (관리자)',
+      MEMBER: 'Member (멤버)',
+      VIEWER: 'Observer (읽기 전용)',
+    };
+    return roleMap[role] || role;
+  };
+
   return (
     <div className="min-h-screen bg-[#1d2125] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
+        {/* 초대 배너 */}
+        {inviteInfo && (
+          <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30 rounded-lg p-4 mb-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center">
+                <Users className="h-5 w-5 text-blue-400" />
+              </div>
+              <div>
+                <p className="text-sm text-blue-300">보드 초대</p>
+                <p className="text-white font-semibold">{inviteInfo.boardName}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-gray-400">참여 역할:</span>
+              <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded text-xs">
+                {getRoleDisplay(inviteInfo.role)}
+              </span>
+            </div>
+            <div className="mt-3 pt-3 border-t border-white/10">
+              <p className="text-sm text-gray-300 flex items-center gap-1">
+                <ArrowRight className="h-4 w-4 text-green-400" />
+                가입하면 바로 보드에 참여할 수 있습니다!
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* 로고 */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">Team Kanban</h1>
-          <p className="text-gray-400">팀 협업을 위한 칸반보드</p>
+          <p className="text-gray-400">
+            {inviteInfo ? '계정을 만들고 팀에 합류하세요' : '팀 협업을 위한 칸반보드'}
+          </p>
         </div>
 
         {/* 로그인/회원가입 카드 */}
@@ -134,14 +179,18 @@ export function LoginPage({ onLogin, onSignup, onGoogleLogin, onBack }: LoginPag
 
             <Button
               type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+              className={`w-full text-white ${
+                inviteInfo && mode === 'signup'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700'
+                  : 'bg-blue-600 hover:bg-blue-700'
+              }`}
               disabled={isLoading}
             >
               {isLoading
                 ? '처리중...'
                 : mode === 'login'
-                ? '로그인'
-                : '회원가입'}
+                ? (inviteInfo ? '로그인하고 보드 참여하기' : '로그인')
+                : (inviteInfo ? '가입하고 보드 참여하기' : '회원가입')}
             </Button>
           </form>
 
@@ -237,7 +286,9 @@ export function LoginPage({ onLogin, onSignup, onGoogleLogin, onBack }: LoginPag
         </div>
 
         <div className="mt-6 text-center text-sm text-gray-500">
-          7일 무료 체험 후 유료 전환됩니다.
+          {inviteInfo
+            ? '초대받은 보드에서 바로 협업을 시작하세요!'
+            : '7일 무료 체험 후 유료 전환됩니다.'}
         </div>
       </div>
     </div>

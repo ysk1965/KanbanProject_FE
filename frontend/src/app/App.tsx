@@ -27,18 +27,70 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// 초대 정보 인터페이스
+interface InviteInfo {
+  boardName: string;
+  role: string;
+  inviterName?: string;
+}
+
 // 로그인 페이지 래퍼 (이미 로그인되어 있으면 보드 목록으로)
 function LoginRoute() {
-  const { isAuthenticated, isLoading, login, signup, googleLogin } = useAuth();
+  const { isAuthenticated, isLoading, login: authLogin, signup: authSignup, googleLogin: authGoogleLogin } = useAuth();
   const navigate = useNavigate();
   const [isProcessingInvite, setIsProcessingInvite] = useState(false);
+  const [justLoggedIn, setJustLoggedIn] = useState(false);
+  const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null);
+
+  // 초대 정보 로드
+  useEffect(() => {
+    const loadInviteInfo = async () => {
+      const pendingCode = localStorage.getItem('pending_invite_code');
+      if (pendingCode) {
+        try {
+          const info = await inviteLinkService.getInviteLinkInfo(pendingCode);
+          if (info.valid) {
+            setInviteInfo({
+              boardName: info.board_name,
+              role: info.role,
+            });
+          }
+        } catch (error) {
+          console.error('Failed to load invite info:', error);
+        }
+      }
+    };
+    loadInviteInfo();
+  }, []);
+
+  // 로그인/회원가입 후 초대 처리를 위한 래퍼 함수들
+  const handleLoginSuccess = async () => {
+    setJustLoggedIn(true);
+  };
+
+  const login = async (email: string, password: string) => {
+    await authLogin(email, password);
+    await handleLoginSuccess();
+  };
+
+  const signup = async (email: string, password: string, name: string) => {
+    await authSignup(email, password, name);
+    await handleLoginSuccess();
+  };
+
+  const googleLogin = async (idToken: string) => {
+    await authGoogleLogin(idToken);
+    await handleLoginSuccess();
+  };
 
   useEffect(() => {
     const handlePostLogin = async () => {
-      if (isAuthenticated && !isLoading && !isProcessingInvite) {
+      // 방금 로그인했거나 이미 인증된 상태인 경우
+      if ((justLoggedIn || (isAuthenticated && !isLoading)) && !isProcessingInvite) {
         // 대기 중인 초대가 있으면 자동으로 수락
         const pendingCode = localStorage.getItem('pending_invite_code');
-        if (pendingCode) {
+        if (pendingCode && justLoggedIn) {
+          // 방금 로그인한 경우에만 초대 자동 수락
           setIsProcessingInvite(true);
           localStorage.removeItem('pending_invite_code');
           try {
@@ -51,14 +103,15 @@ function LoginRoute() {
           } finally {
             setIsProcessingInvite(false);
           }
-        } else {
+        } else if (isAuthenticated && !isLoading) {
+          // 이미 로그인되어 있고 초대 코드가 없으면 보드 목록으로
           navigate('/boards');
         }
       }
     };
 
     handlePostLogin();
-  }, [isAuthenticated, isLoading, navigate, isProcessingInvite]);
+  }, [isAuthenticated, isLoading, navigate, isProcessingInvite, justLoggedIn]);
 
   if (isLoading || isProcessingInvite) {
     return (
@@ -80,6 +133,7 @@ function LoginRoute() {
       onLogin={login}
       onSignup={signup}
       onGoogleLogin={googleLogin}
+      inviteInfo={inviteInfo}
     />
   );
 }
