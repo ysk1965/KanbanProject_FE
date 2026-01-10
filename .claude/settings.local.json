@@ -5,7 +5,10 @@
       "Bash(tree:*)",
       "Bash(npm run build:*)",
       "Bash(curl:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "WebSearch",
+      "Bash(npm uninstall:*)",
+      "Bash(npm run dev:*)"
     ]
   }
 }

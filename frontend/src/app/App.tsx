@@ -1,7 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
-import { DndProvider } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Plus, Users, Settings, Filter, ArrowLeft, Bell } from 'lucide-react';
+import { DragProvider } from './contexts/DragContext';
 import { Block, Feature, Task, Priority, Tag, Board, InviteLink, Subscription, PricingPlan, ActivityLog } from './types';
 import { KanbanBlock } from './components/KanbanBlock';
 import { FeatureCard } from './components/FeatureCard';
@@ -483,6 +482,39 @@ function App() {
     setBlocks(updatedBlocks);
   };
 
+  // 드래그로 블록 이동
+  const handleMoveBlockDrag = (dragIndex: number, hoverIndex: number) => {
+    const dragBlock = sortedBlocks[dragIndex];
+    const hoverBlock = sortedBlocks[hoverIndex];
+
+    // 고정 블록은 이동 불가
+    if (!dragBlock || !hoverBlock) return;
+    if (dragBlock.type === 'FIXED' || hoverBlock.type === 'FIXED') return;
+
+    // position 교환
+    const updatedBlocks = blocks.map((b) => {
+      if (b.id === dragBlock.id) {
+        return { ...b, position: hoverBlock.position };
+      }
+      if (b.id === hoverBlock.id) {
+        return { ...b, position: dragBlock.position };
+      }
+      return b;
+    });
+
+    setBlocks(updatedBlocks);
+
+    // API 호출 (비동기, 실패해도 UI는 즉시 업데이트)
+    if (currentBoardId) {
+      // 새로운 정렬 순서로 블록 ID 배열 생성
+      const sortedUpdatedBlocks = [...updatedBlocks].sort((a, b) => a.position - b.position);
+      const blockIds = sortedUpdatedBlocks.map((b) => b.id);
+      blockService.reorderBlocks(currentBoardId, blockIds).catch((error) => {
+        console.error('Failed to reorder blocks:', error);
+      });
+    }
+  };
+
   // Feature 관리
   const handleAddFeature = async (data: {
     title: string;
@@ -677,27 +709,36 @@ function App() {
     }
   };
 
-  const handleMoveTask = async (taskId: string, targetBlockId: string) => {
+  const handleMoveTask = async (taskId: string, targetBlockId: string, newPosition: number) => {
     const task = tasks.find((t) => t.id === taskId);
     if (!task || !currentBoardId) return;
+
+    const sourceBlockId = task.block_id;
 
     // Done 블록 찾기 (fixed_type이 DONE인 블록)
     const doneBlock = blocks.find((b) => b.fixed_type === 'DONE');
     const targetBlock = blocks.find((b) => b.id === targetBlockId);
 
     // Done 블록 이동 여부 판단 (block_id 기반으로 판단 - is_completed 플래그 불일치 방지)
-    const wasInDone = doneBlock?.id === task.block_id;
+    const wasInDone = doneBlock?.id === sourceBlockId;
     const isMovingToDone = doneBlock?.id === targetBlockId;
     const isNowCompleted = isMovingToDone;
 
-    // 낙관적 업데이트
-    setTasks(
-      tasks.map((t) =>
-        t.id === taskId
-          ? { ...t, block_id: targetBlockId, block_name: targetBlock?.name, completed: isNowCompleted }
-          : t
-      )
-    );
+    // 낙관적 업데이트 - 이동하는 task만 업데이트 (position shift는 BE에서 처리)
+    setTasks((prevTasks) => {
+      return prevTasks.map((t) => {
+        if (t.id === taskId) {
+          return {
+            ...t,
+            block_id: targetBlockId,
+            block_name: targetBlock?.name,
+            completed: isNowCompleted,
+            position: newPosition,
+          };
+        }
+        return t;
+      });
+    });
 
     // Feature 진행률 업데이트 (로컬) - Done 블록으로 이동하거나 Done에서 나올 때만
     if (wasInDone !== isMovingToDone) {
@@ -728,17 +769,10 @@ function App() {
 
     try {
       // API 호출: PUT /boards/{boardId}/tasks/{taskId}/move
-      const updatedTask = await taskService.moveTask(currentBoardId, taskId, targetBlockId, task.position);
-      // API 응답으로 상태 업데이트 (백엔드에서 설정된 is_completed 값 반영)
-      if (updatedTask) {
-        setTasks((prevTasks) =>
-          prevTasks.map((t) =>
-            t.id === taskId
-              ? { ...t, ...updatedTask }
-              : t
-          )
-        );
-      }
+      await taskService.moveTask(currentBoardId, taskId, targetBlockId, newPosition);
+      // 서버에서 position이 재조정되므로 task 목록 refetch
+      const tasksData = await taskService.getTasks(currentBoardId);
+      setTasks(tasksData);
     } catch (error) {
       console.error('Failed to move task:', error);
       // 롤백
@@ -773,38 +807,36 @@ function App() {
     }
   };
 
-  const handleReorderTask = (
+  const handleReorderTask = async (
     taskId: string,
     blockId: string,
     newPosition: number
   ) => {
-    const tasksInBlock = tasks.filter((t) => t.block_id === blockId);
-    const taskToMove = tasksInBlock.find((t) => t.id === taskId);
+    if (!currentBoardId) return;
+
+    const taskToMove = tasks.find((t) => t.id === taskId);
     if (!taskToMove) return;
 
-    const oldPosition = taskToMove.position;
+    const originalTasks = [...tasks];
 
-    const updatedTasks = tasks.map((task) => {
-      if (task.id === taskId) {
-        return { ...task, position: newPosition };
-      }
-      if (task.block_id === blockId) {
-        if (oldPosition < newPosition) {
-          // 아래로 이동: 사이의 Task들을 위로
-          if (task.position > oldPosition && task.position <= newPosition) {
-            return { ...task, position: task.position - 1 };
-          }
-        } else {
-          // 위로 이동: 사이의 Task들을 아래로
-          if (task.position >= newPosition && task.position < oldPosition) {
-            return { ...task, position: task.position + 1 };
-          }
-        }
-      }
-      return task;
-    });
+    // Optimistic update - 이동하는 task만 업데이트 (position shift는 BE에서 처리)
+    setTasks((prevTasks) =>
+      prevTasks.map((t) =>
+        t.id === taskId ? { ...t, position: newPosition } : t
+      )
+    );
 
-    setTasks(updatedTasks);
+    // API 호출
+    try {
+      await taskService.moveTask(currentBoardId, taskId, blockId, newPosition);
+      // 서버에서 position이 재조정되므로 task 목록 refetch
+      const tasksData = await taskService.getTasks(currentBoardId);
+      setTasks(tasksData);
+    } catch (error) {
+      console.error('Failed to reorder task:', error);
+      // 롤백
+      setTasks(originalTasks);
+    }
   };
 
   // Feature 진행률 업데이트 (체크리스트 변경 시)
@@ -1054,7 +1086,7 @@ function App() {
   }
 
   return (
-    <DndProvider backend={HTML5Backend}>
+    <DragProvider>
       <div className="min-h-screen bg-[#1d2125]">
         {/* Trial Banner */}
         <TrialBanner 
@@ -1222,6 +1254,8 @@ function App() {
                       boardId={currentBoardId}
                       expandedChecklistTaskIds={expandedChecklistTaskIds}
                       onToggleChecklistExpand={handleToggleChecklistExpand}
+                      blockIndex={index}
+                      onMoveBlockDrag={handleMoveBlockDrag}
                     />
                   )}
 
@@ -1330,7 +1364,7 @@ function App() {
           onLoadMore={handleLoadMoreActivity}
         />
       </div>
-    </DndProvider>
+    </DragProvider>
   );
 }
 

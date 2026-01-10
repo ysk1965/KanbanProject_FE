@@ -1,9 +1,9 @@
 import { useRef, useState, useEffect } from 'react';
-import { useDrag, useDrop } from 'react-dnd';
-import { Task, DragItem, Tag, Feature, ChecklistItem } from '../types';
+import { Task, Tag, Feature, ChecklistItem } from '../types';
 import { GripVertical, Calendar, ChevronDown, ChevronUp, CheckSquare } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { checklistAPI } from '../utils/api';
+import { useDragContext } from '../contexts/DragContext';
 
 interface DraggableCardProps {
   task: Task;
@@ -12,7 +12,6 @@ interface DraggableCardProps {
   onClick?: () => void;
   availableTags?: Tag[];
   features?: Feature[];
-  onMoveCard: (dragIndex: number, hoverIndex: number, draggedTask: Task) => void;
   boardId?: string | null;
   isChecklistExpanded?: boolean;
   onToggleChecklistExpand?: (taskId: string) => void;
@@ -25,15 +24,21 @@ export function DraggableCard({
   onClick,
   availableTags = [],
   features = [],
-  onMoveCard,
   boardId,
   isChecklistExpanded = false,
   onToggleChecklistExpand,
 }: DraggableCardProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const dragHandleRef = useRef<HTMLDivElement>(null);
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const { state, startTaskDrag, endTaskDrag } = useDragContext();
+
+  // 현재 이 카드가 드래그 중인지 확인
+  const isThisCardDragging = state.draggedTask?.id === task.id;
 
   // task의 체크리스트 카운트가 변경되면 데이터 다시 로드 (모달에서 변경 시 동기화)
   useEffect(() => {
@@ -64,83 +69,32 @@ export function DraggableCard({
     }
   }, [task.checklist_completed, task.checklist_total]);
 
-  const [{ isDragging }, drag] = useDrag({
-    type: 'task',
-    item: () => ({ type: 'task', taskId: task.id, currentBlock: blockId, index, task }),
-    collect: (monitor) => ({
-      isDragging: monitor.isDragging(),
-    }),
-  });
+  // 드래그 시작 핸들러
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('application/task', task.id);
+    e.dataTransfer.setData('text/plain', task.id);
 
-  const [{ isOver, canDrop }, drop] = useDrop({
-    accept: 'task',
-    hover(item: DragItem & { index: number; task: Task }, monitor) {
-      if (!ref.current) {
-        return;
-      }
+    // 드래그 이미지 설정 (카드 전체)
+    if (ref.current) {
+      e.dataTransfer.setDragImage(ref.current, 20, 20);
+    }
 
-      const dragIndex = item.index;
-      const hoverIndex = index;
-      const draggedTask = item.task;
+    setIsDragging(true);
+    startTaskDrag(task, blockId);
+  };
 
-      // 같은 블록 내에서만 순서 변경
-      if (item.currentBlock !== blockId) {
-        return;
-      }
-
-      // Don't replace items with themselves
-      if (dragIndex === hoverIndex) {
-        return;
-      }
-
-      // Determine rectangle on screen
-      const hoverBoundingRect = ref.current?.getBoundingClientRect();
-
-      // Get vertical middle
-      const hoverMiddleY = (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2;
-
-      // Determine mouse position
-      const clientOffset = monitor.getClientOffset();
-
-      // Get pixels to the top
-      const hoverClientY = clientOffset!.y - hoverBoundingRect.top;
-
-      // Only perform the move when the mouse has crossed half of the items height
-      // When dragging downwards, only move when the cursor is below 50%
-      // When dragging upwards, only move when the cursor is above 50%
-
-      // Dragging downwards
-      if (dragIndex < hoverIndex && hoverClientY < hoverMiddleY) {
-        return;
-      }
-
-      // Dragging upwards
-      if (dragIndex > hoverIndex && hoverClientY > hoverMiddleY) {
-        return;
-      }
-
-      // Time to actually perform the action
-      onMoveCard(dragIndex, hoverIndex, draggedTask);
-
-      // Note: we're mutating the monitor item here!
-      // Generally it's better to avoid mutations,
-      // but it's good here for the sake of performance
-      // to avoid expensive index searches.
-      item.index = hoverIndex;
-    },
-    collect: (monitor) => ({
-      isOver: monitor.isOver(),
-      canDrop: monitor.canDrop(),
-    }),
-  });
-
-  drag(drop(ref));
+  // 드래그 종료 핸들러
+  const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
+    setIsDragging(false);
+    endTaskDrag();
+  };
 
   const taskTags = task.tags || [];
 
   // 연결된 Feature 찾기 (task has feature_id now)
   const linkedFeature = features.find((f) => f.id === task.feature_id);
-  
+
   // Feature 색상 (기본값: 보라색)
   const featureColor = linkedFeature?.color || '#8B5CF6';
 
@@ -234,151 +188,182 @@ export function DraggableCard({
   const completedCount = checklistItems.filter((item) => item.completed).length;
   const hasChecklist = (task.checklist_total ?? 0) > 0;
 
+  // 드래그 중인 다른 카드가 있으면 이 카드는 pointer-events: none (이벤트가 블록으로 직접 전달됨)
+  const shouldDisablePointerEvents = state.draggedTask && state.draggedTask.id !== task.id;
+
   return (
     <div
       ref={ref}
-      className={`bg-white rounded-lg p-3 border shadow-sm cursor-pointer hover:shadow-md transition-all ${
-        isDragging ? 'opacity-30' : ''
+      data-task-id={task.id}
+      data-task-index={index}
+      className={`relative bg-white rounded-lg p-3 border shadow-sm transition-all duration-200 ${
+        isDragging || isThisCardDragging
+          ? 'opacity-20 border-2 border-dashed border-blue-400 bg-blue-50 shadow-none'
+          : 'cursor-pointer hover:shadow-md'
       } ${task.completed ? 'border-green-300 bg-green-50' : 'border-gray-200'} ${
-        isOver && canDrop ? 'border-t-4 border-t-blue-500' : ''
+        shouldDisablePointerEvents ? 'pointer-events-none' : ''
       }`}
-      onClick={onClick}
+      onClick={isDragging ? undefined : onClick}
+      onDragEnter={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+      }}
     >
       <div className="flex items-start gap-2">
-        <GripVertical className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0 cursor-grab active:cursor-grabbing" />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-900 break-words">
-            {task.title}
-          </p>
-          
-          {/* 연결된 Feature 표시 */}
-          {linkedFeature && (
-            <div className="mt-2">
-              <div 
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border"
-                style={{ 
-                  backgroundColor: `${featureColor}15`, 
-                  borderColor: featureColor,
-                  color: featureColor 
-                }}
-              >
-                <div 
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: featureColor }}
-                />
-                <span>{linkedFeature.title}</span>
-              </div>
-            </div>
-          )}
+        <div
+          ref={dragHandleRef}
+          draggable={!state.draggedTask || state.draggedTask.id === task.id}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          className={`p-0.5 -ml-1 rounded transition-colors group ${
+            isDragging ? '' : 'hover:bg-gray-100 cursor-grab active:cursor-grabbing'
+          } ${state.draggedTask && state.draggedTask.id !== task.id ? 'pointer-events-none' : ''}`}
+          title="드래그하여 이동"
+        >
+          <GripVertical className={`h-4 w-4 mt-0.5 flex-shrink-0 transition-colors ${
+            isDragging ? 'text-blue-400' : 'text-gray-300 group-hover:text-gray-500'
+          }`} />
+        </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-gray-900 break-words">
+          {task.title}
+        </p>
 
-          {/* 태그 표시 */}
-          {taskTags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-2">
-              {taskTags.map((tag) => (
-                <Badge
-                  key={tag.id}
-                  style={{ backgroundColor: tag.color }}
-                  className="text-white text-xs px-2 py-0"
-                >
-                  {tag.name}
-                </Badge>
-              ))}
-            </div>
-          )}
-
-          {/* 마감일 표시 */}
-          {task.due_date && (
-            <div className="mt-2 flex items-center gap-1">
+        {/* 연결된 Feature 표시 */}
+        {linkedFeature && (
+          <div className="mt-2">
+            <div
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border"
+              style={{
+                backgroundColor: `${featureColor}15`,
+                borderColor: featureColor,
+                color: featureColor
+              }}
+            >
               <div
-                className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs ${isOverdue(task.due_date)
-                    ? 'bg-red-100 text-red-700'
-                    : isDueSoon(task.due_date)
-                    ? 'bg-yellow-100 text-yellow-700'
-                    : 'bg-gray-100 text-gray-700'
-                }`}
-              >
-                <Calendar className="h-3 w-3" />
-                <span>{formatDueDate(task.due_date)}</span>
-              </div>
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: featureColor }}
+              />
+              <span>{linkedFeature.title}</span>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* 체크리스트 펼침 */}
-          {hasChecklist && boardId && (
-            <div className="mt-2 border-t pt-2">
-              <div
-                className="flex items-center gap-2 cursor-pointer hover:text-gray-700"
-                onClick={handleExpandClick}
+        {/* 태그 표시 */}
+        {taskTags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {taskTags.map((tag) => (
+              <Badge
+                key={tag.id}
+                style={{ backgroundColor: tag.color }}
+                className="text-white text-xs px-2 py-0"
               >
-                <CheckSquare className="h-3 w-3 text-gray-500" />
-                <span className="text-xs text-gray-500">
-                  체크리스트 {hasLoaded ? `${completedCount}/${checklistItems.length}` : `${task.checklist_completed ?? 0}/${task.checklist_total ?? 0}`}
-                </span>
-                {isChecklistExpanded ? (
-                  <ChevronUp className="h-4 w-4 text-gray-500" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 text-gray-500" />
-                )}
-              </div>
-              {isChecklistExpanded && (
-                <div className="mt-2 space-y-1">
-                  {isLoading ? (
-                    <div className="text-xs text-gray-400">로딩 중...</div>
-                  ) : (
-                    checklistItems
-                      .sort((a, b) => a.position - b.position)
-                      .map((item) => (
-                        <div
-                          key={item.id}
-                          className="flex items-start gap-2 p-1.5 rounded bg-gray-50 hover:bg-gray-100"
-                          onClick={(e) => handleToggleItem(e, item.id)}
-                        >
-                          <div
-                            className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 mt-0.5 border ${
-                              item.completed
-                                ? 'bg-green-500 border-green-500'
-                                : 'bg-white border-gray-300'
-                            }`}
-                          >
-                            {item.completed && (
-                              <svg
-                                className="w-3 h-3 text-white"
-                                fill="none"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="2"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path d="M5 13l4 4L19 7"></path>
-                              </svg>
-                            )}
-                          </div>
-                          <span
-                            className={`text-xs flex-1 ${
-                              item.completed ? 'text-gray-400 line-through' : 'text-gray-700'
-                            }`}
-                          >
-                            {item.title}
-                          </span>
-                        </div>
-                      ))
-                  )}
-                </div>
+                {tag.name}
+              </Badge>
+            ))}
+          </div>
+        )}
+
+        {/* 마감일 표시 */}
+        {task.due_date && (
+          <div className="mt-2 flex items-center gap-1">
+            <div
+              className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs ${isOverdue(task.due_date)
+                  ? 'bg-red-100 text-red-700'
+                  : isDueSoon(task.due_date)
+                  ? 'bg-yellow-100 text-yellow-700'
+                  : 'bg-gray-100 text-gray-700'
+              }`}
+            >
+              <Calendar className="h-3 w-3" />
+              <span>{formatDueDate(task.due_date)}</span>
+            </div>
+          </div>
+        )}
+
+        {/* 체크리스트 펼침 */}
+        {hasChecklist && boardId && (
+          <div className="mt-2 border-t pt-2">
+            <div
+              className="flex items-center gap-2 cursor-pointer hover:text-gray-700"
+              onClick={handleExpandClick}
+            >
+              <CheckSquare className="h-3 w-3 text-gray-500" />
+              <span className="text-xs text-gray-500">
+                체크리스트 {hasLoaded ? `${completedCount}/${checklistItems.length}` : `${task.checklist_completed ?? 0}/${task.checklist_total ?? 0}`}
+              </span>
+              {isChecklistExpanded ? (
+                <ChevronUp className="h-4 w-4 text-gray-500" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-gray-500" />
               )}
             </div>
-          )}
-
-          {/* 담당자 */}
-          {task.assignee && (
-            <div className="mt-2 flex items-center gap-1 flex-wrap">
-              <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-xs text-white">
-                {task.assignee.name.charAt(0).toUpperCase()}
+            {isChecklistExpanded && (
+              <div className="mt-2 space-y-1">
+                {isLoading ? (
+                  <div className="text-xs text-gray-400">로딩 중...</div>
+                ) : (
+                  checklistItems
+                    .sort((a, b) => a.position - b.position)
+                    .map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-start gap-2 p-1.5 rounded bg-gray-50 hover:bg-gray-100"
+                        onClick={(e) => handleToggleItem(e, item.id)}
+                      >
+                        <div
+                          className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 mt-0.5 border ${
+                            item.completed
+                              ? 'bg-green-500 border-green-500'
+                              : 'bg-white border-gray-300'
+                          }`}
+                        >
+                          {item.completed && (
+                            <svg
+                              className="w-3 h-3 text-white"
+                              fill="none"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path d="M5 13l4 4L19 7"></path>
+                            </svg>
+                          )}
+                        </div>
+                        <span
+                          className={`text-xs flex-1 ${
+                            item.completed ? 'text-gray-400 line-through' : 'text-gray-700'
+                          }`}
+                        >
+                          {item.title}
+                        </span>
+                      </div>
+                    ))
+                )}
               </div>
-              <span className="text-xs text-gray-600">{task.assignee.name}</span>
+            )}
+          </div>
+        )}
+
+        {/* 담당자 */}
+        {task.assignee && (
+          <div className="mt-2 flex items-center gap-1 flex-wrap">
+            <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-xs text-white">
+              {task.assignee.name.charAt(0).toUpperCase()}
             </div>
-          )}
-        </div>
+            <span className="text-xs text-gray-600">{task.assignee.name}</span>
+          </div>
+        )}
+      </div>
       </div>
     </div>
   );

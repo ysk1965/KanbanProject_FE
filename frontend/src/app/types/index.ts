@@ -308,6 +308,12 @@ export interface DragItem {
   currentBlock: string;
 }
 
+export interface BlockDragItem {
+  type: 'block';
+  blockId: string;
+  position: number;
+}
+
 // ========================================
 // API 에러 타입
 // ========================================
