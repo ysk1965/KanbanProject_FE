@@ -4,7 +4,8 @@
       "Bash(timeout 5 npm run dev:*)",
       "Bash(tree:*)",
       "Bash(npm run build:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

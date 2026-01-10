@@ -472,7 +472,7 @@ export const taskService = {
           assignee: null,
           due_date: data.due_date || null,
           estimated_minutes: data.estimated_minutes || null,
-          is_completed: false,
+          completed: false,
           position: tasks.filter((t: Task) => t.feature_id === featureId).length,
           tags: [],
           created_at: new Date().toISOString(),
@@ -550,7 +550,7 @@ export const taskService = {
 
         const updatedTasks = tasks.map((t: Task) =>
           t.id === taskId
-            ? { ...t, block_id: targetBlockId, position, is_completed: isCompleted }
+            ? { ...t, block_id: targetBlockId, position, completed: isCompleted }
             : t
         );
         saveToLocalStorage('kanban_tasks', updatedTasks);

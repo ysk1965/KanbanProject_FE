@@ -169,7 +169,7 @@ export interface Task {
   assignee: Assignee | null;
   due_date: string | null;
   estimated_minutes: number | null;
-  is_completed: boolean;
+  completed: boolean;
   position: number;
   tags: Tag[];
   checklist_total?: number;
@@ -190,7 +190,7 @@ export interface Task {
 export interface ChecklistItem {
   id: string;
   title: string;
-  is_completed: boolean;
+  completed: boolean;
   assignee?: {
     id: string;
     name: string;

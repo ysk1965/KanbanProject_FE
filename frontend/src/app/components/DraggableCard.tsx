@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useDrag, useDrop } from 'react-dnd';
 import { Task, DragItem, Tag, Feature, ChecklistItem } from '../types';
 import { GripVertical, Calendar, ChevronDown, ChevronUp, CheckSquare } from 'lucide-react';
@@ -14,6 +14,8 @@ interface DraggableCardProps {
   features?: Feature[];
   onMoveCard: (dragIndex: number, hoverIndex: number, draggedTask: Task) => void;
   boardId?: string | null;
+  isChecklistExpanded?: boolean;
+  onToggleChecklistExpand?: (taskId: string) => void;
 }
 
 export function DraggableCard({
@@ -25,12 +27,42 @@ export function DraggableCard({
   features = [],
   onMoveCard,
   boardId,
+  isChecklistExpanded = false,
+  onToggleChecklistExpand,
 }: DraggableCardProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const [isExpanded, setIsExpanded] = useState(false);
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
+
+  // task의 체크리스트 카운트가 변경되면 데이터 다시 로드 (모달에서 변경 시 동기화)
+  useEffect(() => {
+    if (hasLoaded && isChecklistExpanded && boardId) {
+      const localCompleted = checklistItems.filter(item => item.completed).length;
+      // 외부에서 변경된 경우 (모달에서 토글한 경우) 데이터 다시 로드
+      if (task.checklist_completed !== localCompleted || task.checklist_total !== checklistItems.length) {
+        // API toggle이 완료될 시간을 주기 위해 약간의 딜레이 추가
+        const timer = setTimeout(() => {
+          checklistAPI.getChecklist(boardId, task.id)
+            .then((response) => {
+              const items: ChecklistItem[] = response.items.map((item) => ({
+                id: item.id,
+                title: item.title,
+                completed: item.completed,
+                position: item.position,
+                due_date: item.due_date,
+                assignee: item.assignee ? { id: item.assignee.id, name: item.assignee.name } : null,
+              }));
+              setChecklistItems(items);
+            })
+            .catch((error) => {
+              console.error('Failed to reload checklist:', error);
+            });
+        }, 300);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [task.checklist_completed, task.checklist_total]);
 
   const [{ isDragging }, drag] = useDrag({
     type: 'task',
@@ -148,7 +180,7 @@ export function DraggableCard({
       const items: ChecklistItem[] = response.items.map((item) => ({
         id: item.id,
         title: item.title,
-        is_completed: item.is_completed,
+        completed: item.completed,
         position: item.position,
         due_date: item.due_date,
         assignee: item.assignee ? { id: item.assignee.id, name: item.assignee.name } : null,
@@ -162,13 +194,17 @@ export function DraggableCard({
     }
   };
 
-  // 확장 버튼 클릭 핸들러
-  const handleExpandClick = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!isExpanded && !hasLoaded) {
-      await loadChecklist();
+  // 펼침 상태가 변경되면 체크리스트 로드
+  useEffect(() => {
+    if (isChecklistExpanded && !hasLoaded && boardId) {
+      loadChecklist();
     }
-    setIsExpanded(!isExpanded);
+  }, [isChecklistExpanded, hasLoaded, boardId]);
+
+  // 확장 버튼 클릭 핸들러
+  const handleExpandClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onToggleChecklistExpand?.(task.id);
   };
 
   // 체크리스트 토글
@@ -178,7 +214,7 @@ export function DraggableCard({
 
     setChecklistItems(
       checklistItems.map((item) =>
-        item.id === itemId ? { ...item, is_completed: !item.is_completed } : item
+        item.id === itemId ? { ...item, completed: !item.completed } : item
       )
     );
 
@@ -189,13 +225,13 @@ export function DraggableCard({
       // 롤백
       setChecklistItems(
         checklistItems.map((item) =>
-          item.id === itemId ? { ...item, is_completed: !item.is_completed } : item
+          item.id === itemId ? { ...item, completed: !item.completed } : item
         )
       );
     }
   };
 
-  const completedCount = checklistItems.filter((item) => item.is_completed).length;
+  const completedCount = checklistItems.filter((item) => item.completed).length;
   const hasChecklist = (task.checklist_total ?? 0) > 0;
 
   return (
@@ -203,7 +239,7 @@ export function DraggableCard({
       ref={ref}
       className={`bg-white rounded-lg p-3 border shadow-sm cursor-pointer hover:shadow-md transition-all ${
         isDragging ? 'opacity-30' : ''
-      } ${task.is_completed ? 'border-green-300 bg-green-50' : 'border-gray-200'} ${
+      } ${task.completed ? 'border-green-300 bg-green-50' : 'border-gray-200'} ${
         isOver && canDrop ? 'border-t-4 border-t-blue-500' : ''
       }`}
       onClick={onClick}
@@ -278,13 +314,13 @@ export function DraggableCard({
                 <span className="text-xs text-gray-500">
                   체크리스트 {hasLoaded ? `${completedCount}/${checklistItems.length}` : `${task.checklist_completed ?? 0}/${task.checklist_total ?? 0}`}
                 </span>
-                {isExpanded ? (
+                {isChecklistExpanded ? (
                   <ChevronUp className="h-4 w-4 text-gray-500" />
                 ) : (
                   <ChevronDown className="h-4 w-4 text-gray-500" />
                 )}
               </div>
-              {isExpanded && (
+              {isChecklistExpanded && (
                 <div className="mt-2 space-y-1">
                   {isLoading ? (
                     <div className="text-xs text-gray-400">로딩 중...</div>
@@ -299,12 +335,12 @@ export function DraggableCard({
                         >
                           <div
                             className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 mt-0.5 border ${
-                              item.is_completed
+                              item.completed
                                 ? 'bg-green-500 border-green-500'
                                 : 'bg-white border-gray-300'
                             }`}
                           >
-                            {item.is_completed && (
+                            {item.completed && (
                               <svg
                                 className="w-3 h-3 text-white"
                                 fill="none"
@@ -320,7 +356,7 @@ export function DraggableCard({
                           </div>
                           <span
                             className={`text-xs flex-1 ${
-                              item.is_completed ? 'text-gray-400 line-through' : 'text-gray-700'
+                              item.completed ? 'text-gray-400 line-through' : 'text-gray-700'
                             }`}
                           >
                             {item.title}

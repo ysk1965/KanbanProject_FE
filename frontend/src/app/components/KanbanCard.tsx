@@ -39,7 +39,7 @@ export function KanbanCard({ task, blockId, onClick, availableTags = [], boardId
       const items: ChecklistItem[] = response.items.map((item) => ({
         id: item.id,
         title: item.title,
-        is_completed: item.is_completed,
+        completed: item.completed,
         position: item.position,
         due_date: item.due_date,
         assignee: item.assignee ? { id: item.assignee.id, name: item.assignee.name } : null,
@@ -69,7 +69,7 @@ export function KanbanCard({ task, blockId, onClick, availableTags = [], boardId
 
     setChecklistItems(
       checklistItems.map((item) =>
-        item.id === itemId ? { ...item, is_completed: !item.is_completed } : item
+        item.id === itemId ? { ...item, completed: !item.completed } : item
       )
     );
 
@@ -80,13 +80,13 @@ export function KanbanCard({ task, blockId, onClick, availableTags = [], boardId
       // 롤백
       setChecklistItems(
         checklistItems.map((item) =>
-          item.id === itemId ? { ...item, is_completed: !item.is_completed } : item
+          item.id === itemId ? { ...item, completed: !item.completed } : item
         )
       );
     }
   };
 
-  const completedCount = checklistItems.filter((item) => item.is_completed).length;
+  const completedCount = checklistItems.filter((item) => item.completed).length;
   const hasChecklist = (task.checklist_total ?? 0) > 0;
 
   return (
@@ -180,12 +180,12 @@ export function KanbanCard({ task, blockId, onClick, availableTags = [], boardId
                         >
                           <div
                             className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 mt-0.5 border ${
-                              item.is_completed
+                              item.completed
                                 ? 'bg-green-500 border-green-500'
                                 : 'bg-white border-gray-300'
                             }`}
                           >
-                            {item.is_completed && (
+                            {item.completed && (
                               <svg
                                 className="w-3 h-3 text-white"
                                 fill="none"
@@ -201,7 +201,7 @@ export function KanbanCard({ task, blockId, onClick, availableTags = [], boardId
                           </div>
                           <span
                             className={`text-xs flex-1 ${
-                              item.is_completed ? 'text-gray-400 line-through' : 'text-gray-700'
+                              item.completed ? 'text-gray-400 line-through' : 'text-gray-700'
                             }`}
                           >
                             {item.title}

@@ -1,6 +1,6 @@
 import { Feature, Task } from '../types';
 import { Progress } from './ui/progress';
-import { Calendar, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar, AlertCircle, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { useState } from 'react';
 
@@ -25,9 +25,10 @@ const priorityLabels: Record<string, string> = {
 
 export function FeatureCard({ feature, onClick, availableTags = [], tasks = [] }: FeatureCardProps) {
   const progressPercent = feature.progress_percentage;
+  const isCompleted = progressPercent === 100 && feature.total_tasks > 0;
 
   const featureTags = feature.tags || [];
-  
+
   // Feature 색상 (기본값: 보라색)
   const featureColor = feature.color || '#8B5CF6';
 
@@ -41,8 +42,10 @@ export function FeatureCard({ feature, onClick, availableTags = [], tasks = [] }
 
   return (
     <div
-      className="bg-white rounded-lg p-4 border-2 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-      style={{ borderColor: featureColor }}
+      className={`rounded-lg p-4 border-2 shadow-sm hover:shadow-md transition-shadow cursor-pointer ${
+        isCompleted ? 'bg-green-50' : 'bg-white'
+      }`}
+      style={{ borderColor: isCompleted ? '#22c55e' : featureColor }}
       onClick={onClick}
     >
       {/* 제목 */}
@@ -74,14 +77,18 @@ export function FeatureCard({ feature, onClick, availableTags = [], tasks = [] }
       {/* 진행률 */}
       <div className="mb-3">
         <div className="flex items-center justify-between mb-1">
-          <span className="text-xs text-gray-600">
+          <span className={`text-xs ${isCompleted ? 'text-green-700 font-semibold' : 'text-gray-600'}`}>
+            {isCompleted && <CheckCircle2 className="h-3 w-3 inline mr-1" />}
             {feature.completed_tasks}/{feature.total_tasks} 완료
           </span>
-          <span className="text-xs font-semibold text-purple-600">
+          <span className={`text-xs font-semibold ${isCompleted ? 'text-green-600' : 'text-purple-600'}`}>
             {Math.round(progressPercent)}%
           </span>
         </div>
-        <Progress value={progressPercent} className="h-2" />
+        <Progress
+          value={progressPercent}
+          className={`h-2 ${isCompleted ? '[&>div]:bg-green-500' : ''}`}
+        />
       </div>
 
       {/* 추가 정보 */}
@@ -131,10 +138,10 @@ export function FeatureCard({ feature, onClick, availableTags = [], tasks = [] }
               {tasks.map((task) => (
                 <div key={task.id} className="flex items-start gap-2 p-2 rounded bg-gray-50 hover:bg-gray-100">
                   <div
-                    className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${task.is_completed ? 'bg-green-500' : 'bg-gray-300'
+                    className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${task.completed ? 'bg-green-500' : 'bg-gray-300'
                     }`}
                   >
-                    {task.is_completed && (
+                    {task.completed && (
                       <svg className="w-3 h-3 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
                         <path d="M5 13l4 4L19 7"></path>
                       </svg>
@@ -142,7 +149,7 @@ export function FeatureCard({ feature, onClick, availableTags = [], tasks = [] }
                   </div>
                   <div className="flex-1 min-w-0">
                     <span
-                      className={`text-xs block ${task.is_completed ? 'text-gray-500 line-through' : 'text-gray-900'
+                      className={`text-xs block ${task.completed ? 'text-gray-500 line-through' : 'text-gray-900'
                       }`}
                     >
                       {task.title}

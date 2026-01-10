@@ -86,6 +86,9 @@ function App() {
   const [activityCursor, setActivityCursor] = useState<string | undefined>();
   const [hasMoreActivity, setHasMoreActivity] = useState(false);
 
+  // 체크리스트 펼침 상태 (task ID 집합)
+  const [expandedChecklistTaskIds, setExpandedChecklistTaskIds] = useState<Set<string>>(new Set());
+
   // 멤버 데이터
   const availableMembers = ['김철수', '이영희', '박개발', '이디자인', '최QA', '김기획'];
   const boardMembers = availableMembers;
@@ -579,6 +582,16 @@ function App() {
     // 로컬 상태 즉시 업데이트 (낙관적 업데이트)
     setTasks(tasks.map((t) => (t.id === taskId ? { ...t, ...updates } : t)));
 
+    // 체크리스트만 업데이트하는 경우 API 호출 불필요 (체크리스트는 별도 API로 관리)
+    const isOnlyChecklistUpdate =
+      Object.keys(updates).every(key =>
+        key === 'checklist_total' || key === 'checklist_completed'
+      );
+
+    if (isOnlyChecklistUpdate) {
+      return; // 로컬 상태만 업데이트하고 종료
+    }
+
     // Task의 체크리스트가 업데이트되었을 경우
     if (updates.checklist_total !== undefined || updates.checklist_completed !== undefined) {
       const task = tasks.find((t) => t.id === taskId);
@@ -588,8 +601,9 @@ function App() {
       }
     }
 
-    // API 호출
+    // API 호출 (실제 task 필드 업데이트)
     try {
+      const currentTask = tasks.find((t) => t.id === taskId);
       const updatedTask = await taskService.updateTask(currentBoardId, taskId, {
         title: updates.title,
         description: updates.description,
@@ -597,9 +611,13 @@ function App() {
         due_date: updates.due_date ?? null,
         estimated_minutes: updates.estimated_minutes ?? null,
       });
-      // API 응답으로 상태 업데이트
+      // API 응답과 기존 체크리스트 데이터 병합
       setTasks((prevTasks) =>
-        prevTasks.map((t) => (t.id === taskId ? updatedTask : t))
+        prevTasks.map((t) => (t.id === taskId ? {
+          ...updatedTask,
+          checklist_total: t.checklist_total,
+          checklist_completed: t.checklist_completed,
+        } : t))
       );
     } catch (error) {
       console.error('Failed to update task:', error);
@@ -621,7 +639,7 @@ function App() {
     const feature = features.find((f) => f.id === task.feature_id);
     if (feature) {
       const newTotalTasks = feature.total_tasks - 1;
-      const newCompletedTasks = task.is_completed
+      const newCompletedTasks = task.completed
         ? feature.completed_tasks - 1
         : feature.completed_tasks;
       setFeatures(
@@ -665,25 +683,34 @@ function App() {
 
     // Done 블록 찾기 (fixed_type이 DONE인 블록)
     const doneBlock = blocks.find((b) => b.fixed_type === 'DONE');
-    const wasCompleted = task.is_completed;
-    const isNowCompleted = doneBlock?.id === targetBlockId || targetBlockId === 'done';
+    const targetBlock = blocks.find((b) => b.id === targetBlockId);
+
+    // Done 블록 이동 여부 판단 (block_id 기반으로 판단 - is_completed 플래그 불일치 방지)
+    const wasInDone = doneBlock?.id === task.block_id;
+    const isMovingToDone = doneBlock?.id === targetBlockId;
+    const isNowCompleted = isMovingToDone;
 
     // 낙관적 업데이트
     setTasks(
       tasks.map((t) =>
         t.id === taskId
-          ? { ...t, block_id: targetBlockId, is_completed: isNowCompleted }
+          ? { ...t, block_id: targetBlockId, block_name: targetBlock?.name, completed: isNowCompleted }
           : t
       )
     );
 
-    // Feature 진행률 업데이트 (로컬)
-    if (wasCompleted !== isNowCompleted) {
+    // Feature 진행률 업데이트 (로컬) - Done 블록으로 이동하거나 Done에서 나올 때만
+    if (wasInDone !== isMovingToDone) {
       const feature = features.find((f) => f.id === task.feature_id);
       if (feature) {
-        const newCompletedTasks = isNowCompleted
-          ? feature.completed_tasks + 1
-          : feature.completed_tasks - 1;
+        let newCompletedTasks: number;
+        if (isMovingToDone) {
+          // Done으로 이동
+          newCompletedTasks = Math.min(feature.completed_tasks + 1, feature.total_tasks);
+        } else {
+          // Done에서 나옴
+          newCompletedTasks = Math.max(feature.completed_tasks - 1, 0);
+        }
 
         setFeatures(
           features.map((f) =>
@@ -701,17 +728,48 @@ function App() {
 
     try {
       // API 호출: PUT /boards/{boardId}/tasks/{taskId}/move
-      await taskService.moveTask(currentBoardId, taskId, targetBlockId, task.position);
+      const updatedTask = await taskService.moveTask(currentBoardId, taskId, targetBlockId, task.position);
+      // API 응답으로 상태 업데이트 (백엔드에서 설정된 is_completed 값 반영)
+      if (updatedTask) {
+        setTasks((prevTasks) =>
+          prevTasks.map((t) =>
+            t.id === taskId
+              ? { ...t, ...updatedTask }
+              : t
+          )
+        );
+      }
     } catch (error) {
       console.error('Failed to move task:', error);
       // 롤백
       setTasks(
         tasks.map((t) =>
           t.id === taskId
-            ? { ...t, block_id: task.block_id, is_completed: wasCompleted }
+            ? { ...t, block_id: task.block_id, block_name: task.block_name, completed: wasInDone }
             : t
         )
       );
+      // Feature 진행률 롤백
+      if (wasInDone !== isMovingToDone) {
+        const feature = features.find((f) => f.id === task.feature_id);
+        if (feature) {
+          const rollbackCompletedTasks = isMovingToDone
+            ? Math.max(feature.completed_tasks - 1, 0)
+            : Math.min(feature.completed_tasks + 1, feature.total_tasks);
+
+          setFeatures(
+            features.map((f) =>
+              f.id === feature.id
+                ? {
+                    ...f,
+                    completed_tasks: rollbackCompletedTasks,
+                    progress_percentage: f.total_tasks > 0 ? Math.round((rollbackCompletedTasks / f.total_tasks) * 100) : 0,
+                  }
+                : f
+            )
+          );
+        }
+      }
     }
   };
 
@@ -763,6 +821,19 @@ function App() {
       total_tasks: totalTasks,
       completed_tasks: completedCount,
       progress_percentage: totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0,
+    });
+  };
+
+  // 체크리스트 펼침 상태 토글
+  const handleToggleChecklistExpand = (taskId: string) => {
+    setExpandedChecklistTaskIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(taskId)) {
+        newSet.delete(taskId);
+      } else {
+        newSet.add(taskId);
+      }
+      return newSet;
     });
   };
 
@@ -904,8 +975,8 @@ function App() {
       // 카드 상태 필터
       if (filterOptions.cardStatus.length > 0) {
         const hasStatus =
-          (filterOptions.cardStatus.includes('completed') && task.is_completed) ||
-          (filterOptions.cardStatus.includes('incomplete') && !task.is_completed);
+          (filterOptions.cardStatus.includes('completed') && task.completed) ||
+          (filterOptions.cardStatus.includes('incomplete') && !task.completed);
 
         if (!hasStatus) {
           return false;
@@ -1149,6 +1220,8 @@ function App() {
                       }
                       availableTags={tags}
                       boardId={currentBoardId}
+                      expandedChecklistTaskIds={expandedChecklistTaskIds}
+                      onToggleChecklistExpand={handleToggleChecklistExpand}
                     />
                   )}
 

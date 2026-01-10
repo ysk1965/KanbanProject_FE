@@ -25,6 +25,8 @@ interface KanbanBlockProps {
   canMoveLeft?: boolean;
   canMoveRight?: boolean;
   boardId?: string | null;
+  expandedChecklistTaskIds?: Set<string>;
+  onToggleChecklistExpand?: (taskId: string) => void;
 }
 
 export function KanbanBlock({
@@ -41,6 +43,8 @@ export function KanbanBlock({
   canMoveLeft,
   canMoveRight,
   boardId,
+  expandedChecklistTaskIds,
+  onToggleChecklistExpand,
 }: KanbanBlockProps) {
   const [{ isOver, canDrop }, drop] = useDrop<DragItem & { index: number; task: Task }, void, { isOver: boolean; canDrop: boolean }>({
     accept: 'task',
@@ -135,6 +139,8 @@ export function KanbanBlock({
             features={features}
             onMoveCard={handleMoveCard}
             boardId={boardId}
+            isChecklistExpanded={expandedChecklistTaskIds?.has(task.id)}
+            onToggleChecklistExpand={onToggleChecklistExpand}
           />
         ))}
         {/* 빈 블록 드롭 영역 */}

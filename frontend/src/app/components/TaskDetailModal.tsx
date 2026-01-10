@@ -82,7 +82,7 @@ export function TaskDetailModal({
             const items: ChecklistItem[] = response.items.map((item) => ({
               id: item.id,
               title: item.title,
-              is_completed: item.is_completed,
+              completed: item.completed,
               position: item.position,
               due_date: item.due_date,
               assignee: item.assignee ? { id: item.assignee.id, name: item.assignee.name } : null,
@@ -198,7 +198,7 @@ export function TaskDetailModal({
       const newItem: ChecklistItem = {
         id: response.id,
         title: response.title,
-        is_completed: response.is_completed,
+        completed: response.completed,
         position: response.position,
         due_date: response.due_date,
         assignee: response.assignee ? { id: response.assignee.id, name: response.assignee.name } : null,
@@ -207,10 +207,10 @@ export function TaskDetailModal({
       const newItems = [...checklistItems, newItem];
       setChecklistItems(newItems);
 
-      // 로컬 UI 업데이트 (백엔드에서 자동으로 checklist count 관리)
+      // 부모 상태 업데이트 (카드에 반영)
       const newTotal = newItems.length;
-      const newCompleted = newItems.filter(item => item.is_completed).length;
-      updateEditedTask({ checklist_total: newTotal, checklist_completed: newCompleted });
+      const newCompleted = newItems.filter(item => item.completed).length;
+      onUpdate({ checklist_total: newTotal, checklist_completed: newCompleted });
     } catch (error) {
       console.error('Failed to add checklist item:', error);
     }
@@ -223,13 +223,13 @@ export function TaskDetailModal({
 
     // 낙관적 업데이트
     const newItems = checklistItems.map((item) =>
-      item.id === itemId ? { ...item, is_completed: !item.is_completed } : item
+      item.id === itemId ? { ...item, completed: !item.completed } : item
     );
     setChecklistItems(newItems);
 
-    // 로컬 UI 업데이트
-    const newCompleted = newItems.filter(item => item.is_completed).length;
-    updateEditedTask({ checklist_total: newItems.length, checklist_completed: newCompleted });
+    // 부모 상태 업데이트 (카드에 반영)
+    const newCompleted = newItems.filter(item => item.completed).length;
+    onUpdate({ checklist_total: newItems.length, checklist_completed: newCompleted });
 
     try {
       await checklistAPI.toggleItem(boardId, task.id, itemId);
@@ -237,8 +237,8 @@ export function TaskDetailModal({
       console.error('Failed to toggle checklist item:', error);
       // 롤백
       setChecklistItems(prevItems);
-      const prevCompleted = prevItems.filter(item => item.is_completed).length;
-      updateEditedTask({ checklist_total: prevItems.length, checklist_completed: prevCompleted });
+      const prevCompleted = prevItems.filter(item => item.completed).length;
+      onUpdate({ checklist_total: prevItems.length, checklist_completed: prevCompleted });
     }
   };
 
@@ -272,7 +272,7 @@ export function TaskDetailModal({
     setChecklistItems(newItems);
 
     // 부모 task 상태 업데이트
-    const newCompleted = newItems.filter(item => item.is_completed).length;
+    const newCompleted = newItems.filter(item => item.completed).length;
     onUpdate({ checklist_total: newItems.length, checklist_completed: newCompleted });
 
     try {
@@ -281,13 +281,13 @@ export function TaskDetailModal({
       console.error('Failed to delete checklist item:', error);
       // 롤백
       setChecklistItems(originalItems);
-      const rolledBackCompleted = originalItems.filter(item => item.is_completed).length;
+      const rolledBackCompleted = originalItems.filter(item => item.completed).length;
       onUpdate({ checklist_total: originalItems.length, checklist_completed: rolledBackCompleted });
     }
   };
 
   // 체크리스트 진행률 계산
-  const completedChecklistCount = checklistItems.filter((item) => item.is_completed).length;
+  const completedChecklistCount = checklistItems.filter((item) => item.completed).length;
   const checklistProgress = checklistItems.length > 0
     ? Math.round((completedChecklistCount / checklistItems.length) * 100)
     : 0;
@@ -599,11 +599,11 @@ function ChecklistItemRow({
 
   // 마감일 상태 확인
   const isOverdue =
-    item.due_date && new Date(item.due_date) < new Date() && !item.is_completed;
+    item.due_date && new Date(item.due_date) < new Date() && !item.completed;
   const isDueSoon =
     item.due_date &&
     new Date(item.due_date).getTime() - new Date().getTime() < 86400000 &&
-    !item.is_completed;
+    !item.completed;
 
   return (
     <div className="group flex items-start gap-2 p-2 rounded hover:bg-gray-50 border border-transparent hover:border-gray-200">
@@ -611,10 +611,10 @@ function ChecklistItemRow({
       <button
         onClick={onToggle}
         className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 mt-0.5 ${
-          item.is_completed ? 'bg-green-500' : 'bg-gray-300 hover:bg-gray-400'
+          item.completed ? 'bg-green-500' : 'bg-gray-300 hover:bg-gray-400'
         }`}
       >
-        {item.is_completed && (
+        {item.completed && (
           <svg
             className="w-3 h-3 text-white"
             fill="none"
@@ -643,7 +643,7 @@ function ChecklistItemRow({
         ) : (
           <div
             className={`text-xs cursor-pointer ${
-              item.is_completed ? 'line-through text-gray-500' : 'text-gray-900'
+              item.completed ? 'line-through text-gray-500' : 'text-gray-900'
             }`}
             onClick={() => setIsEditing(true)}
           >

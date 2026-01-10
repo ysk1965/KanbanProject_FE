@@ -388,13 +388,13 @@ export function FeatureDetailModal({
                 <div
                   key={task.id}
                   className={`flex items-center gap-3 p-3 rounded-lg border ${
-                    task.is_completed
+                    task.completed
                       ? 'bg-green-50 border-green-200'
                       : 'bg-gray-50 border-gray-200'
                   }`}
                 >
                   <div className="flex-shrink-0">
-                    {task.is_completed ? (
+                    {task.completed ? (
                       <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
                         <Check className="h-3 w-3 text-white" />
                       </div>
@@ -405,7 +405,7 @@ export function FeatureDetailModal({
                   <div className="flex-1 min-w-0">
                     <p
                       className={`text-sm ${
-                        task.is_completed
+                        task.completed
                           ? 'line-through text-gray-500'
                           : 'text-gray-900'
                       }`}
