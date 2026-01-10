@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Task, Tag, ChecklistItem } from '../types';
-import { checklistAPI } from '../utils/api';
+import { checklistAPI, taskAPI } from '../utils/api';
 import {
   Dialog,
   DialogContent,
@@ -138,17 +138,41 @@ export function TaskDetailModal({
     setEditedTask((prev) => (prev ? { ...prev, ...updates } : null));
   };
 
-  const handleAddTag = (tagId: string) => {
+  const handleAddTag = async (tagId: string) => {
+    if (!boardId || !task) return;
+
     const currentTags = editedTask.tags || [];
     const tagToAdd = availableTags.find((t) => t.id === tagId);
     if (tagToAdd && !currentTags.some((t) => t.id === tagId)) {
+      // 낙관적 업데이트
       updateEditedTask({ tags: [...currentTags, tagToAdd] });
+
+      try {
+        // API 호출: POST /boards/{boardId}/tasks/{taskId}/tags
+        await taskAPI.addTag(boardId, task.id, tagId);
+      } catch (error) {
+        console.error('Failed to add tag:', error);
+        // 롤백
+        updateEditedTask({ tags: currentTags });
+      }
     }
   };
 
-  const handleRemoveTag = (tagId: string) => {
+  const handleRemoveTag = async (tagId: string) => {
+    if (!boardId || !task) return;
+
     const currentTags = editedTask.tags || [];
+    // 낙관적 업데이트
     updateEditedTask({ tags: currentTags.filter((t) => t.id !== tagId) });
+
+    try {
+      // API 호출: DELETE /boards/{boardId}/tasks/{taskId}/tags/{tagId}
+      await taskAPI.removeTag(boardId, task.id, tagId);
+    } catch (error) {
+      console.error('Failed to remove tag:', error);
+      // 롤백
+      updateEditedTask({ tags: currentTags });
+    }
   };
 
   const handleCreateNewTag = () => {
@@ -183,21 +207,19 @@ export function TaskDetailModal({
       const newItems = [...checklistItems, newItem];
       setChecklistItems(newItems);
 
-      // 부모 task 상태 업데이트
+      // 로컬 UI 업데이트 (백엔드에서 자동으로 checklist count 관리)
       const newTotal = newItems.length;
       const newCompleted = newItems.filter(item => item.is_completed).length;
-      onUpdate({ checklist_total: newTotal, checklist_completed: newCompleted });
+      updateEditedTask({ checklist_total: newTotal, checklist_completed: newCompleted });
     } catch (error) {
       console.error('Failed to add checklist item:', error);
     }
   };
 
   const handleToggleChecklistItem = async (itemId: string) => {
-    console.log('handleToggleChecklistItem called:', { itemId, boardId, taskId: task?.id });
-    if (!boardId || !task) {
-      console.warn('handleToggleChecklistItem: boardId or task is null');
-      return;
-    }
+    if (!boardId || !task) return;
+
+    const prevItems = [...checklistItems];
 
     // 낙관적 업데이트
     const newItems = checklistItems.map((item) =>
@@ -205,23 +227,18 @@ export function TaskDetailModal({
     );
     setChecklistItems(newItems);
 
-    // 부모 task 상태 업데이트
+    // 로컬 UI 업데이트
     const newCompleted = newItems.filter(item => item.is_completed).length;
-    onUpdate({ checklist_total: newItems.length, checklist_completed: newCompleted });
+    updateEditedTask({ checklist_total: newItems.length, checklist_completed: newCompleted });
 
     try {
-      console.log('Calling checklistAPI.toggleItem:', { boardId, taskId: task.id, itemId });
       await checklistAPI.toggleItem(boardId, task.id, itemId);
-      console.log('checklistAPI.toggleItem success');
     } catch (error) {
       console.error('Failed to toggle checklist item:', error);
       // 롤백
-      const rolledBackItems = checklistItems.map((item) =>
-        item.id === itemId ? { ...item, is_completed: !item.is_completed } : item
-      );
-      setChecklistItems(rolledBackItems);
-      const rolledBackCompleted = rolledBackItems.filter(item => item.is_completed).length;
-      onUpdate({ checklist_total: rolledBackItems.length, checklist_completed: rolledBackCompleted });
+      setChecklistItems(prevItems);
+      const prevCompleted = prevItems.filter(item => item.is_completed).length;
+      updateEditedTask({ checklist_total: prevItems.length, checklist_completed: prevCompleted });
     }
   };
 

@@ -112,46 +112,9 @@ function App() {
   });
 
   // 보드 멤버 상태
-  const [boardMembersData, setBoardMembersData] = useState<ShareBoardMember[]>([
-    {
-      id: 'user_1',
-      name: '김철수',
-      email: 'kim@example.com',
-      role: 'admin',
-    },
-    {
-      id: 'user_2',
-      name: '이영희',
-      email: 'lee@example.com',
-      role: 'member',
-    },
-    {
-      id: 'user_3',
-      name: '박개발',
-      email: 'park@example.com',
-      role: 'member',
-    },
-    {
-      id: 'user_4',
-      name: '이디자인',
-      email: 'design@example.com',
-      role: 'member',
-    },
-    {
-      id: 'user_5',
-      name: '최QA',
-      email: 'qa@example.com',
-      role: 'observer',
-    },
-    {
-      id: 'user_6',
-      name: '김기획',
-      email: 'plan@example.com',
-      role: 'member',
-    },
-  ]);
+  const [boardMembersData, setBoardMembersData] = useState<ShareBoardMember[]>([]);
 
-  const currentUserId = 'user_1'; // 현재 로그인한 사용자 ID
+  const currentUserId = currentUser?.id || ''; // 현재 로그인한 사용자 ID
 
   // 초기 데이터 로드 (보드 목록 및 가격 정보)
   useEffect(() => {
@@ -210,6 +173,7 @@ function App() {
           inviteLinksData,
           subscriptionData,
           activitiesResponse,
+          membersData,
         ] = await Promise.all([
           blockService.getBlocks(currentBoardId),
           featureService.getFeatures(currentBoardId),
@@ -218,6 +182,7 @@ function App() {
           inviteLinkService.getInviteLinks(currentBoardId),
           subscriptionService.getSubscription(currentBoardId),
           activityService.getActivities(currentBoardId),
+          memberService.getMembers(currentBoardId),
         ]);
 
         setBlocks(blocksData);
@@ -229,6 +194,14 @@ function App() {
         setActivities(activitiesResponse.activities);
         setActivityCursor(activitiesResponse.next_cursor || undefined);
         setHasMoreActivity(activitiesResponse.has_more);
+        // 멤버 데이터 변환 및 설정
+        setBoardMembersData(membersData.members.map((m: any) => ({
+          id: m.id,
+          userId: m.user.id,
+          name: m.user.name,
+          email: m.user.email,
+          role: m.role.toLowerCase() as MemberRole,
+        })));
 
       } catch (error) {
         console.error('Failed to load board data:', error);
@@ -278,7 +251,9 @@ function App() {
   };
 
   // 보드 멤버 관리 함수
-  const handleAddMember = (email: string, role: MemberRole) => {
+  const handleAddMember = async (email: string, role: MemberRole) => {
+    if (!currentBoardId) return;
+
     // 이메일 형식 검증 (간단)
     if (!email.includes('@')) {
       alert('올바른 이메일 주소를 입력해주세요.');
@@ -291,31 +266,64 @@ function App() {
       return;
     }
 
-    // 새 멤버 추가
-    const newMember: ShareBoardMember = {
-      id: `user_${Date.now()}`,
-      name: email.split('@')[0], // 이메일에서 이름 추출 (실제로는 서버에서 받아야 함)
-      email,
-      role,
-    };
-
-    setBoardMembersData([...boardMembersData, newMember]);
+    try {
+      // API 호출: POST /boards/{boardId}/members/invite
+      const newMember = await memberService.inviteMember(currentBoardId, email, role.toUpperCase());
+      setBoardMembersData([...boardMembersData, {
+        id: newMember.id,
+        userId: newMember.user.id,
+        name: newMember.user.name,
+        email: newMember.user.email,
+        role: newMember.role.toLowerCase() as MemberRole,
+      }]);
+    } catch (error: any) {
+      console.error('Failed to invite member:', error);
+      alert(error?.message || '멤버 초대에 실패했습니다.');
+    }
   };
 
-  const handleUpdateMemberRole = (memberId: string, role: MemberRole) => {
+  const handleUpdateMemberRole = async (memberId: string, role: MemberRole) => {
+    if (!currentBoardId) return;
+
+    const prevMembers = [...boardMembersData];
+    // 낙관적 업데이트
     setBoardMembersData(
       boardMembersData.map((m) => (m.id === memberId ? { ...m, role } : m))
     );
+
+    try {
+      // API 호출: PUT /boards/{boardId}/members/{memberId}/role
+      await memberService.updateMemberRole(currentBoardId, memberId, role.toUpperCase());
+    } catch (error: any) {
+      console.error('Failed to update member role:', error);
+      // 롤백
+      setBoardMembersData(prevMembers);
+      alert(error?.message || '역할 변경에 실패했습니다.');
+    }
   };
 
-  const handleRemoveMember = (memberId: string) => {
+  const handleRemoveMember = async (memberId: string) => {
+    if (!currentBoardId) return;
+
     // 자기 자신은 삭제할 수 없음
     if (memberId === currentUserId) {
       alert('자기 자신은 제거할 수 없습니다.');
       return;
     }
 
+    const prevMembers = [...boardMembersData];
+    // 낙관적 업데이트
     setBoardMembersData(boardMembersData.filter((m) => m.id !== memberId));
+
+    try {
+      // API 호출: DELETE /boards/{boardId}/members/{memberId}
+      await memberService.removeMember(currentBoardId, memberId);
+    } catch (error: any) {
+      console.error('Failed to remove member:', error);
+      // 롤백
+      setBoardMembersData(prevMembers);
+      alert(error?.message || '멤버 제거에 실패했습니다.');
+    }
   };
 
   // 로그인/로그아웃 핸들러
@@ -381,33 +389,45 @@ function App() {
   }, [blocks]);
 
   // 블록 관리
-  const handleAddBlock = (name: string, color: string) => {
-    // Task와 Done 사이에 블록 추가
-    const taskBlock = blocks.find((b) => b.id === 'task');
-    const doneBlock = blocks.find((b) => b.id === 'done');
+  const handleAddBlock = async (name: string, color: string) => {
+    if (!currentBoardId) return;
 
-    if (!taskBlock || !doneBlock) return;
+    try {
+      // API 호출로 블록 생성
+      const newBlock = await blockService.createBlock(currentBoardId, { name, color });
 
-    const newPosition = taskBlock.position + 1;
+      // 블록 목록 새로고침
+      const blocksData = await blockService.getBlocks(currentBoardId);
+      setBlocks(blocksData);
+    } catch (error) {
+      console.error('Failed to create block:', error);
 
-    const newBlock: Block = {
-      id: `custom_${Date.now()}`,
-      type: 'CUSTOM',
-      fixed_type: null,
-      name,
-      color,
-      position: newPosition,
-    };
+      // 폴백: 로컬에서 블록 추가
+      const taskBlock = blocks.find((b) => b.id === 'task');
+      const doneBlock = blocks.find((b) => b.id === 'done');
 
-    // 기존 커스텀 블록들의 position 조정
-    const updatedBlocks = blocks.map((block) => {
-      if (block.position >= newPosition && block.id !== 'task') {
-        return { ...block, position: block.position + 1 };
-      }
-      return block;
-    });
+      if (!taskBlock || !doneBlock) return;
 
-    setBlocks([...updatedBlocks, newBlock]);
+      const newPosition = taskBlock.position + 1;
+
+      const newBlock: Block = {
+        id: `custom_${Date.now()}`,
+        type: 'CUSTOM',
+        fixed_type: null,
+        name,
+        color,
+        position: newPosition,
+      };
+
+      const updatedBlocks = blocks.map((block) => {
+        if (block.position >= newPosition && block.id !== 'task') {
+          return { ...block, position: block.position + 1 };
+        }
+        return block;
+      });
+
+      setBlocks([...updatedBlocks, newBlock]);
+    }
   };
 
   const handleDeleteBlock = (blockId: string) => {
@@ -593,36 +613,62 @@ function App() {
     }
   };
 
-  const handleDeleteTask = (taskId: string) => {
+  const handleDeleteTask = async (taskId: string) => {
     const task = tasks.find((t) => t.id === taskId);
-    if (!task) return;
+    if (!task || !currentBoardId) return;
 
+    // 낙관적 업데이트
     const feature = features.find((f) => f.id === task.feature_id);
     if (feature) {
       const newTotalTasks = feature.total_tasks - 1;
       const newCompletedTasks = task.is_completed
         ? feature.completed_tasks - 1
         : feature.completed_tasks;
-      handleUpdateFeature(feature.id, {
-        total_tasks: newTotalTasks,
-        completed_tasks: newCompletedTasks,
-        progress_percentage: newTotalTasks > 0 ? Math.round((newCompletedTasks / newTotalTasks) * 100) : 0,
-      });
+      setFeatures(
+        features.map((f) =>
+          f.id === feature.id
+            ? {
+                ...f,
+                total_tasks: newTotalTasks,
+                completed_tasks: newCompletedTasks,
+                progress_percentage: newTotalTasks > 0 ? Math.round((newCompletedTasks / newTotalTasks) * 100) : 0,
+              }
+            : f
+        )
+      );
     }
 
     setTasks(tasks.filter((t) => t.id !== taskId));
     setIsTaskModalOpen(false);
     setSelectedTask(null);
+
+    try {
+      // API 호출: DELETE /boards/{boardId}/tasks/{taskId}
+      await taskService.deleteTask(currentBoardId, taskId);
+    } catch (error) {
+      console.error('Failed to delete task:', error);
+      // 롤백: Task 복구
+      setTasks([...tasks]);
+      if (feature) {
+        setFeatures(
+          features.map((f) =>
+            f.id === feature.id ? feature : f
+          )
+        );
+      }
+    }
   };
 
-  const handleMoveTask = (taskId: string, targetBlockId: string) => {
+  const handleMoveTask = async (taskId: string, targetBlockId: string) => {
     const task = tasks.find((t) => t.id === taskId);
-    if (!task) return;
+    if (!task || !currentBoardId) return;
 
+    // Done 블록 찾기 (fixed_type이 DONE인 블록)
+    const doneBlock = blocks.find((b) => b.fixed_type === 'DONE');
     const wasCompleted = task.is_completed;
-    const isNowCompleted = targetBlockId === 'done';
+    const isNowCompleted = doneBlock?.id === targetBlockId || targetBlockId === 'done';
 
-    // Task 이동
+    // 낙관적 업데이트
     setTasks(
       tasks.map((t) =>
         t.id === taskId
@@ -631,7 +677,7 @@ function App() {
       )
     );
 
-    // Feature 진행률 업데이트
+    // Feature 진행률 업데이트 (로컬)
     if (wasCompleted !== isNowCompleted) {
       const feature = features.find((f) => f.id === task.feature_id);
       if (feature) {
@@ -639,11 +685,33 @@ function App() {
           ? feature.completed_tasks + 1
           : feature.completed_tasks - 1;
 
-        handleUpdateFeature(feature.id, {
-          completed_tasks: newCompletedTasks,
-          progress_percentage: feature.total_tasks > 0 ? Math.round((newCompletedTasks / feature.total_tasks) * 100) : 0,
-        });
+        setFeatures(
+          features.map((f) =>
+            f.id === feature.id
+              ? {
+                  ...f,
+                  completed_tasks: newCompletedTasks,
+                  progress_percentage: f.total_tasks > 0 ? Math.round((newCompletedTasks / f.total_tasks) * 100) : 0,
+                }
+              : f
+          )
+        );
       }
+    }
+
+    try {
+      // API 호출: PUT /boards/{boardId}/tasks/{taskId}/move
+      await taskService.moveTask(currentBoardId, taskId, targetBlockId, task.position);
+    } catch (error) {
+      console.error('Failed to move task:', error);
+      // 롤백
+      setTasks(
+        tasks.map((t) =>
+          t.id === taskId
+            ? { ...t, block_id: task.block_id, is_completed: wasCompleted }
+            : t
+        )
+      );
     }
   };
 
@@ -706,14 +774,31 @@ function App() {
   };
 
   // 태그 생성
-  const handleCreateTag = (name: string, color: string) => {
+  const handleCreateTag = async (name: string, color: string) => {
+    if (!currentBoardId) return;
+
+    // 낙관적 업데이트용 임시 ID
+    const tempId = `tag_temp_${Date.now()}`;
     const newTag: Tag = {
-      id: `tag${Date.now()}`,
+      id: tempId,
       name,
       color,
     };
     setTags([...tags, newTag]);
-    return newTag.id;
+
+    try {
+      // API 호출: POST /boards/{boardId}/tags
+      const createdTag = await tagService.createTag(currentBoardId, { name, color });
+      // 임시 ID를 실제 ID로 교체
+      setTags((prevTags) =>
+        prevTags.map((t) => (t.id === tempId ? createdTag : t))
+      );
+      return createdTag.id;
+    } catch (error) {
+      console.error('Failed to create tag:', error);
+      // 롤백
+      setTags((prevTags) => prevTags.filter((t) => t.id !== tempId));
+    }
   };
 
   // 필터링 로직

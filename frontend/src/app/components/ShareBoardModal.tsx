@@ -19,10 +19,11 @@ import { Badge } from './ui/badge';
 import { X, Link as LinkIcon, Copy, Check, UserPlus, Trash2, Plus } from 'lucide-react';
 import { InviteLink } from '../utils/api';
 
-export type MemberRole = 'admin' | 'member' | 'observer';
+export type MemberRole = 'owner' | 'admin' | 'member' | 'observer';
 
 export interface BoardMember {
-  id: string;
+  id: string;       // member ID (for API calls)
+  userId: string;   // user ID (for identifying current user)
   name: string;
   email: string;
   role: MemberRole;
@@ -44,12 +45,14 @@ interface ShareBoardModalProps {
 }
 
 const ROLE_LABELS: Record<MemberRole, string> = {
+  owner: 'Owner',
   admin: 'Admin',
   member: 'Member',
   observer: 'Observer',
 };
 
 const ROLE_COLORS: Record<MemberRole, string> = {
+  owner: 'bg-yellow-100 text-yellow-700 border-yellow-300',
   admin: 'bg-purple-100 text-purple-700 border-purple-300',
   member: 'bg-blue-100 text-blue-700 border-blue-300',
   observer: 'bg-gray-100 text-gray-700 border-gray-300',
@@ -88,8 +91,8 @@ export function ShareBoardModal({
     setTimeout(() => setLinkCopied(false), 2000);
   };
 
-  const currentUser = members.find((m) => m.id === currentUserId);
-  const isCurrentUserAdmin = currentUser?.role === 'admin';
+  const currentUser = members.find((m) => m.userId === currentUserId);
+  const isCurrentUserAdmin = currentUser?.role === 'admin' || currentUser?.role === 'owner';
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -183,7 +186,7 @@ export function ShareBoardModal({
 
             <div className="space-y-2">
               {members.map((member) => {
-                const isCurrentMember = member.id === currentUserId;
+                const isCurrentMember = member.userId === currentUserId;
                 const canEdit = isCurrentUserAdmin && !isCurrentMember;
 
                 return (

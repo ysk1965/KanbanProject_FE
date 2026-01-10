@@ -758,31 +758,9 @@ export const memberService = {
     email: string,
     role: 'ADMIN' | 'MEMBER' | 'VIEWER'
   ): Promise<BoardMember> => {
-    try {
-      const member = await memberAPI.inviteMember(boardId, { email, role });
-      return member;
-    } catch (error) {
-      console.warn('API failed, using mock data for invite member', error);
-      if (USE_MOCK_ON_ERROR) {
-        const members = loadFromLocalStorage('kanban_members', mockMembers);
-        const newMember: BoardMember = {
-          id: `member-${Date.now()}`,
-          user: {
-            id: `user-${Date.now()}`,
-            email,
-            name: email.split('@')[0],
-            profile_image: null,
-          },
-          role,
-          joined_at: new Date().toISOString(),
-          invited_by: null,
-        };
-        const updatedMembers = [...members, newMember];
-        saveToLocalStorage('kanban_members', updatedMembers);
-        return newMember;
-      }
-      throw error;
-    }
+    // 멤버 초대는 mock 폴백 없이 API 에러를 그대로 throw
+    const member = await memberAPI.inviteMember(boardId, { email, role });
+    return member;
   },
 
   updateMemberRole: async (
