@@ -302,7 +302,9 @@ export interface ChecklistItemResponse {
     name: string;
     profile_image: string | null;
   } | null;
+  start_date: string | null;
   due_date: string | null;
+  done_date: string | null;
   position: number;
   created_at: string;
   completed_at: string | null;
@@ -694,7 +696,7 @@ export const checklistAPI = {
   addItem: async (
     boardId: string,
     taskId: string,
-    data: { title: string; assignee_id?: string; due_date?: string }
+    data: { title: string; assignee_id?: string; start_date?: string; due_date?: string }
   ) => {
     return apiClient.post<ChecklistItemResponse>(
       `/boards/${boardId}/tasks/${taskId}/checklist`,
@@ -706,7 +708,7 @@ export const checklistAPI = {
     boardId: string,
     taskId: string,
     itemId: string,
-    data: { title?: string; assignee_id?: string | null; due_date?: string | null }
+    data: { title?: string; assignee_id?: string | null; start_date?: string | null; due_date?: string | null }
   ) => {
     return apiClient.put<ChecklistItemResponse>(
       `/boards/${boardId}/tasks/${taskId}/checklist/${itemId}`,
@@ -839,5 +841,239 @@ export const subscriptionAPI = {
 export const pricingAPI = {
   getPlans: async () => {
     return apiClient.get<PricingResponse>('/pricing', true);
+  },
+};
+
+// ========================================
+// Schedule Types (snake_case - matches backend Jackson config)
+// ========================================
+
+export interface ScheduleSettingsResponse {
+  work_hours_per_day: number;
+  work_start_time: string; // "HH:mm:ss" format
+}
+
+export interface ScheduleUserInfo {
+  id: string;
+  name: string;
+  profile_image: string | null;
+}
+
+export interface ScheduleChecklistItemInfo {
+  id: string;
+  title: string;
+  completed: boolean;
+  start_date: string | null;
+  due_date: string | null;
+}
+
+export interface ScheduleTaskInfo {
+  id: string;
+  title: string;
+}
+
+export interface ScheduleFeatureInfo {
+  id: string;
+  title: string;
+  color: string;
+}
+
+export interface ScheduleBlockInfo {
+  id: string;
+  start_time: string; // "HH:mm:ss" format
+  end_time: string;   // "HH:mm:ss" format
+  checklist_item: ScheduleChecklistItemInfo | null;
+  task: ScheduleTaskInfo | null;
+  feature: ScheduleFeatureInfo | null;
+}
+
+export interface ScheduleColumnInfo {
+  user: ScheduleUserInfo;
+  blocks: ScheduleBlockInfo[];
+}
+
+export interface DailyScheduleResponse {
+  date: string;
+  settings: ScheduleSettingsResponse;
+  columns: ScheduleColumnInfo[];
+}
+
+export interface ScheduleBlockDetailResponse {
+  id: string;
+  assignee_id: string;
+  scheduled_date: string;
+  start_time: string;
+  end_time: string;
+  checklist_item: ScheduleChecklistItemInfo | null;
+  task: ScheduleTaskInfo | null;
+  feature: ScheduleFeatureInfo | null;
+}
+
+export interface BoardChecklistItemResponse {
+  id: string;
+  title: string;
+  completed: boolean;
+  assignee: {
+    id: string;
+    name: string;
+    profile_image: string | null;
+  } | null;
+  start_date: string | null;
+  due_date: string | null;
+  task: {
+    id: string;
+    title: string;
+  } | null;
+  feature: {
+    id: string;
+    title: string;
+    color: string;
+  } | null;
+}
+
+export interface BoardChecklistResponse {
+  total: number;
+  items: BoardChecklistItemResponse[];
+}
+
+// ========================================
+// Schedule API
+// ========================================
+
+export const scheduleAPI = {
+  getDailySchedule: async (
+    boardId: string,
+    date: string,
+    assigneeIds?: string[]
+  ) => {
+    const query = new URLSearchParams();
+    query.set('date', date);
+    if (assigneeIds && assigneeIds.length > 0) {
+      assigneeIds.forEach(id => query.append('assigneeIds', id));
+    }
+    return apiClient.get<DailyScheduleResponse>(
+      `/boards/${boardId}/schedules?${query.toString()}`
+    );
+  },
+
+  createBlock: async (
+    boardId: string,
+    data: {
+      checklist_item_id?: string;
+      assignee_id: string;
+      scheduled_date: string;
+      start_time: string;
+      end_time: string;
+    }
+  ) => {
+    return apiClient.post<ScheduleBlockDetailResponse>(
+      `/boards/${boardId}/schedules`,
+      data
+    );
+  },
+
+  createWithChecklistItem: async (
+    boardId: string,
+    data: {
+      assignee_id: string;
+      scheduled_date: string;
+      start_time: string;
+      end_time: string;
+      checklist_item: {
+        task_id: string;
+        title: string;
+        start_date?: string;
+        due_date?: string;
+      };
+    }
+  ) => {
+    return apiClient.post<ScheduleBlockDetailResponse>(
+      `/boards/${boardId}/schedules/with-checklist-item`,
+      data
+    );
+  },
+
+  updateBlock: async (
+    boardId: string,
+    blockId: string,
+    data: {
+      start_time?: string;
+      end_time?: string;
+    }
+  ) => {
+    return apiClient.put<ScheduleBlockDetailResponse>(
+      `/boards/${boardId}/schedules/${blockId}`,
+      data
+    );
+  },
+
+  deleteBlock: async (boardId: string, blockId: string) => {
+    return apiClient.delete<{ message: string }>(
+      `/boards/${boardId}/schedules/${blockId}`
+    );
+  },
+
+  getSettings: async (boardId: string) => {
+    return apiClient.get<ScheduleSettingsResponse>(
+      `/boards/${boardId}/schedules/settings`
+    );
+  },
+
+  updateSettings: async (
+    boardId: string,
+    data: {
+      work_hours_per_day?: number;
+      work_start_time?: string;
+    }
+  ) => {
+    return apiClient.put<ScheduleSettingsResponse>(
+      `/boards/${boardId}/schedules/settings`,
+      data
+    );
+  },
+};
+
+// ========================================
+// Board Checklist API (for schedule)
+// ========================================
+
+export const boardChecklistAPI = {
+  getItems: async (
+    boardId: string,
+    params?: {
+      assignee_id?: string;
+      is_scheduled?: boolean;
+    }
+  ) => {
+    const query = new URLSearchParams();
+    if (params?.assignee_id) query.set('assigneeId', params.assignee_id);
+    if (params?.is_scheduled !== undefined) {
+      query.set('isScheduled', params.is_scheduled.toString());
+    }
+    const queryString = query.toString();
+    return apiClient.get<BoardChecklistResponse>(
+      `/boards/${boardId}/checklist-items${queryString ? `?${queryString}` : ''}`
+    );
+  },
+};
+
+// ========================================
+// Test Data API (for development)
+// ========================================
+
+export interface TestDataResponse {
+  board_id: string;
+  board_name: string;
+  member_count: number;
+  feature_count: number;
+  task_count: number;
+  checklist_item_count: number;
+  schedule_block_count: number;
+  message: string;
+}
+
+export const testDataAPI = {
+  createTestBoard: async () => {
+    return apiClient.post<TestDataResponse>('/test/create-board');
   },
 };

@@ -196,7 +196,9 @@ export interface ChecklistItem {
     name: string;
     profile_image: string | null;
   } | null;
+  start_date: string | null;
   due_date: string | null;
+  done_date: string | null;
   position: number;
   created_at?: string;
   completed_at?: string | null;

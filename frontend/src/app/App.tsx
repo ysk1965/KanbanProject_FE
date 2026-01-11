@@ -145,17 +145,18 @@ function BoardsRoute() {
   const [boards, setBoards] = useState<Board[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const loadBoards = async () => {
+    try {
+      const boardsData = await boardService.getBoards();
+      setBoards(boardsData);
+    } catch (error) {
+      console.error('Failed to load boards:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const loadBoards = async () => {
-      try {
-        const boardsData = await boardService.getBoards();
-        setBoards(boardsData);
-      } catch (error) {
-        console.error('Failed to load boards:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
     loadBoards();
   }, []);
 
@@ -205,6 +206,7 @@ function BoardsRoute() {
       onCreateBoard={handleCreateBoard}
       onToggleStar={handleToggleStar}
       onLogout={logout}
+      onRefreshBoards={loadBoards}
     />
   );
 }

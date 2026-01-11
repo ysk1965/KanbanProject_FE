@@ -126,7 +126,7 @@ export function DraggableCard({
 
   // 체크리스트 로드
   const loadChecklist = async () => {
-    if (!boardId || hasLoaded) return;
+    if (!boardId) return;
 
     setIsLoading(true);
     try {
@@ -150,10 +150,10 @@ export function DraggableCard({
 
   // 펼침 상태가 변경되면 체크리스트 로드
   useEffect(() => {
-    if (isChecklistExpanded && !hasLoaded && boardId) {
+    if (isChecklistExpanded && boardId) {
       loadChecklist();
     }
-  }, [isChecklistExpanded, hasLoaded, boardId]);
+  }, [isChecklistExpanded, boardId]);
 
   // 확장 버튼 클릭 핸들러
   const handleExpandClick = (e: React.MouseEvent) => {
@@ -315,11 +315,11 @@ export function DraggableCard({
                     .map((item) => (
                       <div
                         key={item.id}
-                        className="flex items-start gap-2 p-1.5 rounded bg-gray-50 hover:bg-gray-100"
+                        className="flex items-center gap-2 p-1.5 rounded bg-gray-50 hover:bg-gray-100"
                         onClick={(e) => handleToggleItem(e, item.id)}
                       >
                         <div
-                          className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 mt-0.5 border ${
+                          className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border ${
                             item.completed
                               ? 'bg-green-500 border-green-500'
                               : 'bg-white border-gray-300'
@@ -346,6 +346,14 @@ export function DraggableCard({
                         >
                           {item.title}
                         </span>
+                        {item.assignee && (
+                          <div
+                            className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-[10px] text-white flex-shrink-0"
+                            title={item.assignee.name}
+                          >
+                            {item.assignee.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
                       </div>
                     ))
                 )}

@@ -1,6 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, Users, Settings, Filter, ArrowLeft, Bell } from 'lucide-react';
+import { Plus, Users, Settings, Filter, ArrowLeft, Bell, LayoutGrid, Calendar } from 'lucide-react';
+
+// 뷰 모드 타입
+type ViewMode = 'kanban' | 'schedule';
 import { DragProvider } from '../contexts/DragContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Block, Feature, Task, Priority, Tag, Board, InviteLink, Subscription, PricingPlan, ActivityLog } from '../types';
@@ -16,6 +19,7 @@ import { ShareBoardModal, BoardMember as ShareBoardMember, MemberRole } from '..
 import { SubscriptionModal } from '../components/SubscriptionModal';
 import { ActivityLogModal } from '../components/ActivityLogModal';
 import { UserMenu } from '../components/UserMenu';
+import { DailyScheduleView } from '../components/DailyScheduleView';
 import { Button } from '../components/ui/button';
 import {
   boardService,
@@ -36,6 +40,9 @@ export function KanbanBoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
   const navigate = useNavigate();
   const { currentUser, logout } = useAuth();
+
+  // 뷰 모드 상태
+  const [viewMode, setViewMode] = useState<ViewMode>('kanban');
 
   // 보드 데이터
   const [board, setBoard] = useState<Board | null>(null);
@@ -663,7 +670,7 @@ export function KanbanBoardPage() {
 
   return (
     <DragProvider>
-      <div className="min-h-screen bg-[#1d2125]">
+      <div className="min-h-screen bg-[#1d2125] flex flex-col">
         <TrialBanner
           status="trial"
           daysRemaining={5}
@@ -687,6 +694,32 @@ export function KanbanBoardPage() {
                 <h1 className="text-xl font-bold text-white">
                   {board?.name || '팀 칸반보드'}
                 </h1>
+                <div className="h-6 w-px bg-gray-700" />
+                {/* 뷰 모드 전환 탭 */}
+                <div className="flex items-center bg-[#1d2125] rounded-lg p-1">
+                  <button
+                    onClick={() => setViewMode('kanban')}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      viewMode === 'kanban'
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-400 hover:text-white hover:bg-[#3a4149]'
+                    }`}
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                    칸반보드
+                  </button>
+                  <button
+                    onClick={() => setViewMode('schedule')}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      viewMode === 'schedule'
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-400 hover:text-white hover:bg-[#3a4149]'
+                    }`}
+                  >
+                    <Calendar className="h-4 w-4" />
+                    데일리스케줄
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center gap-2">
@@ -738,9 +771,11 @@ export function KanbanBoardPage() {
           </div>
         </header>
 
-        <main className="p-6 overflow-x-auto">
-          <div className="flex gap-4 min-w-max">
-            {sortedBlocks.map((block, index) => {
+        {/* 뷰 모드에 따른 컨텐츠 렌더링 */}
+        {viewMode === 'kanban' ? (
+          <main className="p-6 overflow-x-auto">
+            <div className="flex gap-4 min-w-max">
+              {sortedBlocks.map((block, index) => {
               const customBlocks = sortedBlocks.filter((b) => b.type === 'CUSTOM');
               const customBlockIndex = customBlocks.findIndex((b) => b.id === block.id);
 
@@ -822,8 +857,16 @@ export function KanbanBoardPage() {
                 </div>
               );
             })}
-          </div>
-        </main>
+            </div>
+          </main>
+        ) : (
+          <main className="flex-1 overflow-hidden">
+            <DailyScheduleView
+              boardId={boardId || ''}
+              boardMembers={boardMembersData}
+            />
+          </main>
+        )}
 
         {/* 모달들 */}
         <FeatureDetailModal
@@ -848,7 +891,8 @@ export function KanbanBoardPage() {
           onDelete={handleDeleteTask}
           availableTags={tags}
           onCreateTag={handleCreateTag}
-          availableMembers={availableMembers}
+          boardMembers={boardMembersData}
+          currentUser={currentUser}
           boardId={boardId || ''}
         />
 

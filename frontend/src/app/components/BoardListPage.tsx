@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Star, Plus, Users, LogOut } from 'lucide-react';
+import { Star, Plus, Users, LogOut, FlaskConical, Loader2 } from 'lucide-react';
 import { CreateBoardModal } from './CreateBoardModal';
 import { Button } from './ui/button';
 import type { Board } from '../types';
+import { testDataAPI } from '../utils/api';
 
 interface BoardListPageProps {
   boards: Board[];
@@ -10,6 +11,7 @@ interface BoardListPageProps {
   onCreateBoard: (name: string, description?: string) => void;
   onToggleStar: (boardId: string) => void;
   onLogout: () => void;
+  onRefreshBoards?: () => void;
 }
 
 // 보드 색상 gradient 생성
@@ -34,8 +36,27 @@ export function BoardListPage({
   onCreateBoard,
   onToggleStar,
   onLogout,
+  onRefreshBoards,
 }: BoardListPageProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isCreatingTestData, setIsCreatingTestData] = useState(false);
+
+  const handleCreateTestBoard = async () => {
+    if (isCreatingTestData) return;
+
+    setIsCreatingTestData(true);
+    try {
+      const response = await testDataAPI.createTestBoard();
+      console.log('Test board created:', response);
+      alert(`${response.message}\n\n- Board: ${response.board_name}\n- Members: ${response.member_count}\n- Features: ${response.feature_count}\n- Tasks: ${response.task_count}\n- Checklists: ${response.checklist_item_count}\n- Schedule Blocks: ${response.schedule_block_count}`);
+      onRefreshBoards?.();
+    } catch (error) {
+      console.error('Failed to create test board:', error);
+      alert('테스트 보드 생성에 실패했습니다.');
+    } finally {
+      setIsCreatingTestData(false);
+    }
+  };
 
   const starredBoards = boards.filter((b) => b.is_starred);
 
@@ -121,6 +142,25 @@ export function BoardListPage({
             >
               <Plus className="h-6 w-6 mb-1" />
               <span className="text-sm">Create new board</span>
+            </button>
+
+            {/* 테스트 보드 생성 카드 (개발용) */}
+            <button
+              onClick={handleCreateTestBoard}
+              disabled={isCreatingTestData}
+              className="h-24 bg-gradient-to-br from-purple-600/20 to-pink-600/20 hover:from-purple-600/30 hover:to-pink-600/30 border border-purple-500/30 rounded-lg flex flex-col items-center justify-center text-purple-300 hover:text-purple-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isCreatingTestData ? (
+                <>
+                  <Loader2 className="h-6 w-6 mb-1 animate-spin" />
+                  <span className="text-sm">Creating...</span>
+                </>
+              ) : (
+                <>
+                  <FlaskConical className="h-6 w-6 mb-1" />
+                  <span className="text-sm">Create Test Board</span>
+                </>
+              )}
             </button>
           </div>
         </section>

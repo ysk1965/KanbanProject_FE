@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Task, Tag, ChecklistItem } from '../types';
+import { Task, Tag, ChecklistItem, User } from '../types';
 import { checklistAPI, taskAPI } from '../utils/api';
+import { BoardMember } from './ShareBoardModal';
 import {
   Dialog,
   DialogContent,
@@ -30,7 +31,12 @@ import {
   SelectValue,
 } from './ui/select';
 import { Badge } from './ui/badge';
-import { X, Plus, Trash2, Clock, CheckSquare } from 'lucide-react';
+import { Calendar } from './ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { X, Plus, Trash2, Clock, CheckSquare, CalendarIcon } from 'lucide-react';
+import { DateRange } from 'react-day-picker';
+import { format } from 'date-fns';
+import { ko } from 'date-fns/locale';
 
 interface TaskDetailModalProps {
   task: Task | null;
@@ -40,7 +46,8 @@ interface TaskDetailModalProps {
   onDelete: (taskId: string) => void;
   availableTags: Tag[];
   onCreateTag: (name: string, color: string) => void;
-  availableMembers: string[]; // 간단하게 이름 목록으로
+  boardMembers: BoardMember[];
+  currentUser: User | null;
   boardId: string | null;
 }
 
@@ -52,7 +59,8 @@ export function TaskDetailModal({
   onDelete,
   availableTags,
   onCreateTag,
-  availableMembers,
+  boardMembers,
+  currentUser,
   boardId,
 }: TaskDetailModalProps) {
   const [showTagInput, setShowTagInput] = useState(false);
@@ -84,8 +92,10 @@ export function TaskDetailModal({
               title: item.title,
               completed: item.completed,
               position: item.position,
+              start_date: item.start_date,
               due_date: item.due_date,
-              assignee: item.assignee ? { id: item.assignee.id, name: item.assignee.name } : null,
+              done_date: item.done_date,
+              assignee: item.assignee ? { id: item.assignee.id, name: item.assignee.name, profile_image: item.assignee.profile_image } : null,
             }));
             setChecklistItems(items);
           })
@@ -186,13 +196,20 @@ export function TaskDetailModal({
   };
 
   // 체크리스트 관련 함수
-  const handleAddChecklistItem = async (title: string) => {
-    if (!title.trim() || !boardId || !task) return;
+  const handleAddChecklistItem = async (data: {
+    title: string;
+    start_date?: string;
+    due_date?: string;
+    assignee_id?: string;
+  }) => {
+    if (!data.title.trim() || !boardId || !task) return;
 
     try {
       const response = await checklistAPI.addItem(boardId, task.id, {
-        title: title.trim(),
-        assignee_id: editedTask.assignee?.id,
+        title: data.title.trim(),
+        assignee_id: data.assignee_id,
+        start_date: data.start_date,
+        due_date: data.due_date,
       });
 
       const newItem: ChecklistItem = {
@@ -200,8 +217,10 @@ export function TaskDetailModal({
         title: response.title,
         completed: response.completed,
         position: response.position,
+        start_date: response.start_date,
         due_date: response.due_date,
-        assignee: response.assignee ? { id: response.assignee.id, name: response.assignee.name } : null,
+        done_date: response.done_date,
+        assignee: response.assignee ? { id: response.assignee.id, name: response.assignee.name, profile_image: response.assignee.profile_image } : null,
       };
 
       const newItems = [...checklistItems, newItem];
@@ -220,16 +239,27 @@ export function TaskDetailModal({
     if (!boardId || !task) return;
 
     const prevItems = [...checklistItems];
+    const targetItem = checklistItems.find((item) => item.id === itemId);
+    if (!targetItem) return;
 
-    // 낙관적 업데이트
+    const newCompleted = !targetItem.completed;
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD 형식
+
+    // 낙관적 업데이트 - done_date도 함께 업데이트
     const newItems = checklistItems.map((item) =>
-      item.id === itemId ? { ...item, completed: !item.completed } : item
+      item.id === itemId
+        ? {
+            ...item,
+            completed: newCompleted,
+            done_date: newCompleted ? today : null, // 완료시 오늘 날짜, 미완료시 null
+          }
+        : item
     );
     setChecklistItems(newItems);
 
     // 부모 상태 업데이트 (카드에 반영)
-    const newCompleted = newItems.filter(item => item.completed).length;
-    onUpdate({ checklist_total: newItems.length, checklist_completed: newCompleted });
+    const completedCount = newItems.filter(item => item.completed).length;
+    onUpdate({ checklist_total: newItems.length, checklist_completed: completedCount });
 
     try {
       await checklistAPI.toggleItem(boardId, task.id, itemId);
@@ -256,6 +286,7 @@ export function TaskDetailModal({
       await checklistAPI.updateItem(boardId, task.id, itemId, {
         title: updates.title,
         assignee_id: updates.assignee?.id ?? null,
+        start_date: updates.start_date ?? null,
         due_date: updates.due_date ?? null,
       });
     } catch (error) {
@@ -471,7 +502,7 @@ export function TaskDetailModal({
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <CheckSquare className="h-5 w-5 text-gray-600" />
-                <Label className="text-base font-semibold">Cooperation</Label>
+                <Label className="text-base font-semibold">CheckList</Label>
               </div>
               <div className="text-sm text-gray-600">
                 {checklistProgress}%
@@ -489,12 +520,12 @@ export function TaskDetailModal({
                     onToggle={() => handleToggleChecklistItem(item.id)}
                     onUpdate={(updates) => handleUpdateChecklistItem(item.id, updates)}
                     onDelete={() => handleDeleteChecklistItem(item.id)}
-                    availableMembers={availableMembers}
+                    boardMembers={boardMembers}
                   />
                 ))}
 
               {/* 새 항목 추가 */}
-              <AddChecklistItemInput onAdd={handleAddChecklistItem} />
+              <AddChecklistItemInput onAdd={handleAddChecklistItem} boardMembers={boardMembers} currentUser={currentUser} />
             </div>
           </div>
 
@@ -569,13 +600,13 @@ function ChecklistItemRow({
   onToggle,
   onUpdate,
   onDelete,
-  availableMembers,
+  boardMembers,
 }: {
   item: ChecklistItem;
   onToggle: () => void;
   onUpdate: (updates: Partial<ChecklistItem>) => void;
   onDelete: () => void;
-  availableMembers: string[];
+  boardMembers: BoardMember[];
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState(item.title);
@@ -652,8 +683,8 @@ function ChecklistItemRow({
         )}
 
         {/* 메타 정보 */}
-        <div className="flex items-center gap-2 mt-1">
-          {item.due_date && (
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          {(item.start_date || item.due_date) && (
             <div
               className={`flex items-center gap-1 text-xs ${
                 isOverdue
@@ -663,11 +694,22 @@ function ChecklistItemRow({
                   : 'text-gray-500'
               }`}
             >
-              <Clock className="h-3 w-3" />
-              {new Date(item.due_date).toLocaleDateString('ko-KR', {
-                month: 'short',
-                day: 'numeric',
-              })}
+              <CalendarIcon className="h-3 w-3" />
+              {item.start_date && item.due_date ? (
+                <>
+                  {format(new Date(item.start_date), 'M/d', { locale: ko })} - {format(new Date(item.due_date), 'M/d', { locale: ko })}
+                </>
+              ) : item.start_date ? (
+                <>{format(new Date(item.start_date), 'M/d', { locale: ko })} ~</>
+              ) : (
+                <>~ {format(new Date(item.due_date!), 'M/d', { locale: ko })}</>
+              )}
+            </div>
+          )}
+          {item.done_date && (
+            <div className="flex items-center gap-1 text-xs text-green-600">
+              <span>완료:</span>
+              {format(new Date(item.done_date), 'M/d', { locale: ko })}
             </div>
           )}
           {item.assignee && (
@@ -692,29 +734,67 @@ function ChecklistItemRow({
             •••
           </Button>
           {showOptions && (
-            <div className="absolute right-0 mt-1 bg-white border rounded-lg shadow-lg p-2 z-10 min-w-[150px]">
-              <div className="space-y-1">
-                <div className="text-xs font-semibold text-gray-500 px-2 py-1">
-                  마감일
-                </div>
-                <Input
-                  type="date"
-                  value={item.due_date || ''}
-                  onChange={(e) => onUpdate({ due_date: e.target.value })}
-                  className="text-xs h-7"
-                />
-                <div className="text-xs font-semibold text-gray-500 px-2 py-1 mt-2">
-                  담당자
-                </div>
+            <div className="absolute right-0 mt-1 bg-white border rounded-lg shadow-lg p-3 z-10 min-w-[220px]">
+              <div className="space-y-2">
+                <div className="text-xs font-semibold text-gray-500">기간</div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full h-7 text-xs justify-start text-left font-normal"
+                    >
+                      <CalendarIcon className="mr-2 h-3 w-3" />
+                      {item.start_date || item.due_date ? (
+                        <>
+                          {item.start_date ? format(new Date(item.start_date), 'MM/dd', { locale: ko }) : '?'} -{' '}
+                          {item.due_date ? format(new Date(item.due_date), 'MM/dd', { locale: ko }) : '?'}
+                        </>
+                      ) : (
+                        <span className="text-gray-400">날짜 선택</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="range"
+                      selected={{
+                        from: item.start_date ? new Date(item.start_date) : undefined,
+                        to: item.due_date ? new Date(item.due_date) : undefined,
+                      }}
+                      onSelect={(range) => {
+                        onUpdate({
+                          start_date: range?.from ? format(range.from, 'yyyy-MM-dd') : null,
+                          due_date: range?.to ? format(range.to, 'yyyy-MM-dd') : null,
+                        });
+                      }}
+                      numberOfMonths={1}
+                      locale={ko}
+                    />
+                    {(item.start_date || item.due_date) && (
+                      <div className="p-2 border-t">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full text-xs text-red-500 hover:text-red-700"
+                          onClick={() => onUpdate({ start_date: null, due_date: null })}
+                        >
+                          날짜 삭제
+                        </Button>
+                      </div>
+                    )}
+                  </PopoverContent>
+                </Popover>
+
+                <div className="text-xs font-semibold text-gray-500 mt-2">담당자</div>
                 <Select
                   value={item.assignee?.id || 'none'}
                   onValueChange={(value) => {
                     if (value === 'none') {
                       onUpdate({ assignee: null });
                     } else {
-                      const member = availableMembers.find((m) => m === value);
+                      const member = boardMembers.find((m) => m.userId === value);
                       if (member) {
-                        onUpdate({ assignee: { id: value, name: member, profile_image: null } });
+                        onUpdate({ assignee: { id: member.userId, name: member.name, profile_image: member.avatar || null } });
                       }
                     }
                   }}
@@ -726,9 +806,14 @@ function ChecklistItemRow({
                     <SelectItem value="none">
                       <span className="text-xs">없음</span>
                     </SelectItem>
-                    {availableMembers.map((member) => (
-                      <SelectItem key={member} value={member}>
-                        <span className="text-xs">{member}</span>
+                    {boardMembers.map((member) => (
+                      <SelectItem key={member.userId} value={member.userId}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-[10px] text-white flex-shrink-0">
+                            {member.name.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-xs">{member.name}</span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -751,14 +836,45 @@ function ChecklistItemRow({
 }
 
 // 체크리스트 항목 추가 입력
-function AddChecklistItemInput({ onAdd }: { onAdd: (title: string) => void }) {
+function AddChecklistItemInput({
+  onAdd,
+  boardMembers,
+  currentUser,
+}: {
+  onAdd: (data: { title: string; start_date?: string; due_date?: string; assignee_id?: string }) => void;
+  boardMembers: BoardMember[];
+  currentUser: User | null;
+}) {
   const [value, setValue] = useState('');
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [assigneeId, setAssigneeId] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+
+  // 기본값 설정: 현재 사용자를 담당자로, 오늘 날짜를 시작일로
+  const handleStartAdding = () => {
+    setIsAdding(true);
+    // 시작일을 오늘로 설정
+    setDateRange({ from: new Date(), to: undefined });
+    // 현재 사용자가 보드 멤버인지 확인하고 기본값으로 설정
+    if (currentUser) {
+      const currentMember = boardMembers.find(m => m.userId === currentUser.id);
+      if (currentMember) {
+        setAssigneeId(currentUser.id);
+      }
+    }
+  };
 
   const handleAdd = () => {
     if (value.trim()) {
-      onAdd(value);
+      onAdd({
+        title: value,
+        start_date: dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined,
+        due_date: dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined,
+        assignee_id: assigneeId || undefined,
+      });
       setValue('');
+      setDateRange(undefined);
+      setAssigneeId('');
       setIsAdding(false);
     }
   };
@@ -768,9 +884,21 @@ function AddChecklistItemInput({ onAdd }: { onAdd: (title: string) => void }) {
       handleAdd();
     } else if (e.key === 'Escape') {
       setValue('');
+      setDateRange(undefined);
+      setAssigneeId('');
       setIsAdding(false);
     }
   };
+
+  const handleCancel = () => {
+    setValue('');
+    setDateRange(undefined);
+    setAssigneeId('');
+    setIsAdding(false);
+  };
+
+  // 선택된 담당자 정보 가져오기
+  const selectedMember = assigneeId ? boardMembers.find(m => m.userId === assigneeId) : null;
 
   if (!isAdding) {
     return (
@@ -778,7 +906,7 @@ function AddChecklistItemInput({ onAdd }: { onAdd: (title: string) => void }) {
         variant="ghost"
         size="sm"
         className="w-full justify-start text-gray-600 hover:bg-gray-100"
-        onClick={() => setIsAdding(true)}
+        onClick={handleStartAdding}
       >
         <Plus className="h-4 w-4 mr-2" />
         Add an item
@@ -787,35 +915,114 @@ function AddChecklistItemInput({ onAdd }: { onAdd: (title: string) => void }) {
   }
 
   return (
-    <div className="flex gap-2 p-2">
-      <div className="w-4 h-4 rounded bg-gray-200 flex-shrink-0 mt-0.5" />
-      <Input
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={() => {
-          if (!value.trim()) {
-            setIsAdding(false);
-          }
-        }}
-        onKeyDown={handleKeyDown}
-        placeholder="항목 입력..."
-        className="flex-1 text-xs h-7"
-        autoFocus
-      />
-      <Button size="sm" onClick={handleAdd} className="h-7">
-        추가
-      </Button>
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={() => {
-          setValue('');
-          setIsAdding(false);
-        }}
-        className="h-7"
-      >
-        취소
-      </Button>
+    <div className="p-2 border border-gray-200 rounded-lg bg-gray-50">
+      <div className="flex gap-2 items-start">
+        <div className="w-4 h-4 rounded bg-gray-200 flex-shrink-0 mt-1.5" />
+        <div className="flex-1 space-y-2">
+          <Input
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="항목 입력..."
+            className="text-xs h-7"
+            autoFocus
+          />
+
+          {/* 옵션 필드들 */}
+          <div className="flex gap-2 pt-2 border-t border-gray-200">
+              {/* 날짜 범위 선택 */}
+              <div className="flex-1">
+                <label className="text-xs text-gray-500 block mb-1">기간</label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full h-7 text-xs justify-start text-left font-normal"
+                    >
+                      <CalendarIcon className="mr-2 h-3 w-3" />
+                      {dateRange?.from ? (
+                        dateRange.to ? (
+                          <>
+                            {format(dateRange.from, 'MM/dd', { locale: ko })} -{' '}
+                            {format(dateRange.to, 'MM/dd', { locale: ko })}
+                          </>
+                        ) : (
+                          format(dateRange.from, 'MM/dd', { locale: ko })
+                        )
+                      ) : (
+                        <span className="text-gray-400">날짜 선택</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="range"
+                      selected={dateRange}
+                      onSelect={setDateRange}
+                      numberOfMonths={1}
+                      locale={ko}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* 담당자 */}
+              <div className="flex-1">
+                <label className="text-xs text-gray-500 block mb-1">담당자</label>
+                <Select
+                  value={assigneeId || 'none'}
+                  onValueChange={(val) => setAssigneeId(val === 'none' ? '' : val)}
+                >
+                  <SelectTrigger className="h-7 text-xs">
+                    {selectedMember ? (
+                      <div className="flex items-center gap-1">
+                        <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-[10px] text-white flex-shrink-0">
+                          {selectedMember.name.charAt(0).toUpperCase()}
+                        </div>
+                        <span>{selectedMember.name}</span>
+                      </div>
+                    ) : (
+                      <SelectValue placeholder="없음" />
+                    )}
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">
+                      <span className="text-xs">없음</span>
+                    </SelectItem>
+                    {boardMembers.map((member) => (
+                      <SelectItem key={member.userId} value={member.userId}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-[10px] text-white flex-shrink-0">
+                            {member.name.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-xs">{member.name}</span>
+                          {member.userId === currentUser?.id && (
+                            <span className="text-[10px] text-gray-400">(나)</span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+        </div>
+      </div>
+
+      {/* 버튼 영역 */}
+      <div className="flex justify-end gap-2 mt-2">
+        <Button size="sm" onClick={handleAdd} className="h-7">
+          추가
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleCancel}
+          className="h-7"
+        >
+          취소
+        </Button>
+      </div>
     </div>
   );
 }
