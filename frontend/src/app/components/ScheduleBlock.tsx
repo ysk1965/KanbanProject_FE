@@ -146,7 +146,7 @@ export function ScheduleBlock({ block, slotHeight, workStartHour, workEndHour, o
 
   return (
     <div
-      className={`absolute left-1 right-1 rounded-md border-l-4 px-2 py-1 cursor-pointer
+      className={`absolute left-1 right-1 rounded-md border-l-4 px-2 py-1 cursor-pointer pointer-events-auto
         hover:shadow-lg transition-shadow overflow-hidden ${getBackgroundColor()} ${isResizing ? 'z-20' : ''}`}
       style={{ top: `${displayTop}px`, height: `${Math.max(displayHeight, slotHeight)}px` }}
       onClick={() => !isResizing && onClick?.(block)}

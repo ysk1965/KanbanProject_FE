@@ -391,7 +391,7 @@ export function DailyScheduleView({ boardId, boardMembers }: DailyScheduleViewPr
                   return (
                     <div
                       key={member.userId}
-                      className="w-48 flex-shrink-0 relative pointer-events-auto"
+                      className="w-48 flex-shrink-0 relative"
                       style={{ height: `${timeSlots.length * SLOT_HEIGHT}px` }}
                     >
                       {blocks.map((block) => (
