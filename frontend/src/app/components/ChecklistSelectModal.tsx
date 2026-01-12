@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
-import { X, Search, Loader2, CheckSquare, FolderOpen } from 'lucide-react';
+import { X, Search, Loader2, CheckSquare, ChevronDown } from 'lucide-react';
 import { Clock } from 'lucide-react';
 import { boardChecklistAPI, BoardChecklistItemResponse } from '../utils/api';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 
 interface ChecklistSelectModalProps {
   boardId: string;
@@ -54,16 +55,20 @@ export function ChecklistSelectModal({
     );
   }, [items, searchQuery]);
 
-  // Feature별로 그룹화
+  // Task별로 그룹화
   const groupedItems = useMemo(() => {
-    const groups = new Map<string, { feature: { id: string; title: string; color: string } | null; items: BoardChecklistItemResponse[] }>();
+    const groups = new Map<string, {
+      task: { id: string; title: string } | null;
+      feature: { id: string; title: string; color: string } | null;
+      items: BoardChecklistItemResponse[]
+    }>();
 
     filteredItems.forEach((item) => {
-      const featureKey = item.feature?.id || 'no-feature';
-      if (!groups.has(featureKey)) {
-        groups.set(featureKey, { feature: item.feature, items: [] });
+      const taskKey = item.task?.id || 'no-task';
+      if (!groups.has(taskKey)) {
+        groups.set(taskKey, { task: item.task, feature: item.feature, items: [] });
       }
-      groups.get(featureKey)!.items.push(item);
+      groups.get(taskKey)!.items.push(item);
     });
 
     return Array.from(groups.values());
@@ -118,63 +123,77 @@ export function ChecklistSelectModal({
               {searchQuery ? 'No matching items found' : 'No unscheduled checklist items'}
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {groupedItems.map((group) => (
-                <div key={group.feature?.id || 'no-feature'}>
-                  {/* Feature Header */}
-                  <div className="flex items-center gap-2 mb-2">
-                    {group.feature ? (
-                      <>
+                <Collapsible
+                  key={group.task?.id || 'no-task'}
+                  defaultOpen={true}
+                  className="border border-gray-200 rounded-lg overflow-hidden"
+                >
+                  {/* Task Header - Collapsible Trigger */}
+                  <CollapsibleTrigger className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors group">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      {group.feature && (
                         <div
-                          className="w-3 h-3 rounded-full"
+                          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                           style={{ backgroundColor: group.feature.color }}
                         />
-                        <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                          {group.feature.title}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <FolderOpen className="h-3 w-3 text-gray-400" />
-                        <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
-                          No Feature
-                        </span>
-                      </>
-                    )}
-                  </div>
+                      )}
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        {group.feature && (
+                          <span className="text-xs text-gray-400 flex-shrink-0">
+                            {group.feature.title}
+                          </span>
+                        )}
+                        {group.feature && group.task && (
+                          <span className="text-xs text-gray-300 flex-shrink-0">/</span>
+                        )}
+                        {group.task ? (
+                          <span className="text-sm font-medium text-gray-700 truncate">
+                            {group.task.title}
+                          </span>
+                        ) : (
+                          <span className="text-sm font-medium text-gray-400">
+                            No Task
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-gray-400 bg-gray-200 px-2 py-0.5 rounded-full flex-shrink-0">
+                        {group.items.length}
+                      </span>
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-gray-400 transition-transform group-data-[state=closed]:rotate-[-90deg] flex-shrink-0 ml-2" />
+                  </CollapsibleTrigger>
 
-                  {/* Items */}
-                  <div className="space-y-2">
-                    {group.items.map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => onSelect(item.id)}
-                        className="w-full text-left p-3 border border-gray-200 rounded-lg hover:border-indigo-300 hover:bg-indigo-50/50 transition-all group"
-                      >
-                        <div className="flex items-start gap-3">
-                          <CheckSquare className="h-5 w-5 text-gray-400 group-hover:text-indigo-500 mt-0.5 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-gray-900 truncate">
-                              {item.title}
+                  {/* Items - Collapsible Content */}
+                  <CollapsibleContent>
+                    <div className="p-2 space-y-2">
+                      {group.items.map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => onSelect(item.id)}
+                          className="w-full text-left p-3 border border-gray-200 rounded-lg hover:border-indigo-300 hover:bg-indigo-50/50 transition-all group"
+                        >
+                          <div className="flex items-start gap-3">
+                            <CheckSquare className="h-5 w-5 text-gray-400 group-hover:text-indigo-500 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-gray-900 truncate">
+                                {item.title}
+                              </div>
+                              {(item.start_date || item.due_date) && (
+                                <div className="text-xs text-gray-400 mt-1">
+                                  {item.start_date && `Start: ${item.start_date}`}
+                                  {item.start_date && item.due_date && ' · '}
+                                  {item.due_date && `Due: ${item.due_date}`}
+                                </div>
+                              )}
                             </div>
-                            {item.task && (
-                              <div className="text-xs text-gray-500 mt-0.5">
-                                Task: {item.task.title}
-                              </div>
-                            )}
-                            {(item.start_date || item.due_date) && (
-                              <div className="text-xs text-gray-400 mt-1">
-                                {item.start_date && `Start: ${item.start_date}`}
-                                {item.start_date && item.due_date && ' · '}
-                                {item.due_date && `Due: ${item.due_date}`}
-                              </div>
-                            )}
                           </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                        </button>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               ))}
             </div>
           )}

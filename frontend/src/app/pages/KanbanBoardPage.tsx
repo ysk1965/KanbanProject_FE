@@ -1,12 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, Users, Settings, Filter, ArrowLeft, Bell, LayoutGrid, Calendar } from 'lucide-react';
+import { Plus, Users, Settings, Filter, ArrowLeft, Bell, LayoutGrid, Calendar, CalendarDays } from 'lucide-react';
 
 // 뷰 모드 타입
-type ViewMode = 'kanban' | 'schedule';
+type ViewMode = 'kanban' | 'weekly' | 'schedule';
 import { DragProvider } from '../contexts/DragContext';
 import { useAuth } from '../contexts/AuthContext';
-import { Block, Feature, Task, Priority, Tag, Board, InviteLink, Subscription, PricingPlan, ActivityLog } from '../types';
+import { Block, Feature, Task, Priority, Tag, Board, InviteLink, Subscription, PricingPlan, ActivityLog, Milestone } from '../types';
 import { KanbanBlock } from '../components/KanbanBlock';
 import { FeatureCard } from '../components/FeatureCard';
 import { FeatureDetailModal } from '../components/FeatureDetailModal';
@@ -18,8 +18,10 @@ import { FilterModal, FilterOptions } from '../components/FilterModal';
 import { ShareBoardModal, BoardMember as ShareBoardMember, MemberRole } from '../components/ShareBoardModal';
 import { SubscriptionModal } from '../components/SubscriptionModal';
 import { ActivityLogModal } from '../components/ActivityLogModal';
+import { MilestoneModal } from '../components/MilestoneModal';
 import { UserMenu } from '../components/UserMenu';
 import { DailyScheduleView } from '../components/DailyScheduleView';
+import { WeeklyScheduleView } from '../components/WeeklyScheduleView';
 import { Button } from '../components/ui/button';
 import {
   boardService,
@@ -31,7 +33,8 @@ import {
   inviteLinkService,
   subscriptionService,
   activityService,
-  pricingService
+  pricingService,
+  milestoneService
 } from '../utils/services';
 
 import { getRandomFeatureColor } from '../constants';
@@ -56,6 +59,7 @@ export function KanbanBoardPage() {
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [activityCursor, setActivityCursor] = useState<string | undefined>();
   const [hasMoreActivity, setHasMoreActivity] = useState(false);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // 체크리스트 펼침 상태
@@ -71,12 +75,15 @@ export function KanbanBoardPage() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isFeatureModalOpen, setIsFeatureModalOpen] = useState(false);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [scheduleRefreshKey, setScheduleRefreshKey] = useState(0);
   const [isAddBlockModalOpen, setIsAddBlockModalOpen] = useState(false);
   const [isAddFeatureModalOpen, setIsAddFeatureModalOpen] = useState(false);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [isShareBoardModalOpen, setIsShareBoardModalOpen] = useState(false);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [isActivityLogModalOpen, setIsActivityLogModalOpen] = useState(false);
+  const [isMilestoneModalOpen, setIsMilestoneModalOpen] = useState(false);
+  const [selectedMilestone, setSelectedMilestone] = useState<Milestone | null>(null);
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     keyword: '',
     members: [],
@@ -108,6 +115,7 @@ export function KanbanBoardPage() {
           activitiesResponse,
           membersData,
           pricingResponse,
+          milestonesData,
         ] = await Promise.all([
           boardService.getBoard(boardId),
           blockService.getBlocks(boardId),
@@ -119,6 +127,7 @@ export function KanbanBoardPage() {
           activityService.getActivities(boardId),
           memberService.getMembers(boardId),
           pricingService.getPlans(),
+          milestoneService.getMilestones(boardId),
         ]);
 
         setBoard(boardData);
@@ -132,6 +141,7 @@ export function KanbanBoardPage() {
         setActivityCursor(activitiesResponse.next_cursor || undefined);
         setHasMoreActivity(activitiesResponse.has_more);
         setPricingPlans(pricingResponse.plans);
+        setMilestones(milestonesData);
         setBoardMembersData(membersData.members.map((m: any) => ({
           id: m.id,
           userId: m.user.id,
@@ -469,13 +479,18 @@ export function KanbanBoardPage() {
       key === 'checklist_total' || key === 'checklist_completed'
     );
 
-    if (isOnlyChecklistUpdate) return;
+    if (isOnlyChecklistUpdate) {
+      // 체크리스트 변경 시 스케줄 뷰 새로고침 트리거
+      setScheduleRefreshKey((prev) => prev + 1);
+      return;
+    }
 
     try {
       const updatedTask = await taskService.updateTask(boardId, taskId, {
         title: updates.title,
         description: updates.description,
         assignee_id: updates.assignee?.id ?? null,
+        start_date: updates.start_date ?? null,
         due_date: updates.due_date ?? null,
         estimated_minutes: updates.estimated_minutes ?? null,
       });
@@ -521,6 +536,80 @@ export function KanbanBoardPage() {
       await taskService.deleteTask(boardId, taskId);
     } catch (error) {
       console.error('Failed to delete task:', error);
+    }
+  };
+
+  // Milestone 핸들러
+  const handleOpenMilestoneModal = (milestone?: Milestone) => {
+    setSelectedMilestone(milestone || null);
+    setIsMilestoneModalOpen(true);
+  };
+
+  const handleSaveMilestone = async (data: {
+    title: string;
+    description?: string;
+    start_date: string;
+    end_date: string;
+    feature_ids?: string[];
+  }) => {
+    if (!boardId) return;
+
+    try {
+      if (selectedMilestone) {
+        // 수정
+        const updated = await milestoneService.updateMilestone(boardId, selectedMilestone.id, {
+          title: data.title,
+          description: data.description,
+          start_date: data.start_date,
+          end_date: data.end_date,
+        });
+
+        // Feature 연결 변경 처리
+        const currentFeatureIds = new Set(selectedMilestone.features?.map((f) => f.id) || []);
+        const newFeatureIds = new Set(data.feature_ids || []);
+
+        // 제거할 Feature들
+        const featuresToRemove = [...currentFeatureIds].filter((id) => !newFeatureIds.has(id));
+        // 추가할 Feature들
+        const featuresToAdd = [...newFeatureIds].filter((id) => !currentFeatureIds.has(id));
+
+        // Feature 제거
+        for (const featureId of featuresToRemove) {
+          await milestoneService.removeFeature(boardId, selectedMilestone.id, featureId);
+        }
+
+        // Feature 추가
+        if (featuresToAdd.length > 0) {
+          await milestoneService.addFeatures(boardId, selectedMilestone.id, featuresToAdd);
+        }
+
+        // 최신 마일스톤 데이터 다시 조회
+        const refreshedMilestone = await milestoneService.getMilestone(boardId, selectedMilestone.id);
+        setMilestones((prev) => prev.map((m) => (m.id === refreshedMilestone.id ? refreshedMilestone : m)));
+      } else {
+        // 생성
+        const created = await milestoneService.createMilestone(boardId, data);
+        setMilestones((prev) => [...prev, created]);
+
+        // 생성된 마일스톤으로 보드 선택 업데이트
+        await boardService.updateSelectedMilestone(boardId, created.id);
+        setBoard((prev) => prev ? { ...prev, selected_milestone_id: created.id } : prev);
+      }
+    } catch (error) {
+      console.error('Failed to save milestone:', error);
+      throw error;
+    }
+  };
+
+  const handleDeleteMilestone = async (milestoneId: string) => {
+    if (!boardId) return;
+
+    try {
+      await milestoneService.deleteMilestone(boardId, milestoneId);
+      setMilestones((prev) => prev.filter((m) => m.id !== milestoneId));
+    } catch (error) {
+      console.error('Failed to delete milestone:', error);
+      throw error;
     }
   };
 
@@ -709,6 +798,17 @@ export function KanbanBoardPage() {
                     칸반보드
                   </button>
                   <button
+                    onClick={() => setViewMode('weekly')}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      viewMode === 'weekly'
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-400 hover:text-white hover:bg-[#3a4149]'
+                    }`}
+                  >
+                    <CalendarDays className="h-4 w-4" />
+                    위클리스케줄
+                  </button>
+                  <button
                     onClick={() => setViewMode('schedule')}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                       viewMode === 'schedule'
@@ -772,7 +872,53 @@ export function KanbanBoardPage() {
         </header>
 
         {/* 뷰 모드에 따른 컨텐츠 렌더링 */}
-        {viewMode === 'kanban' ? (
+        {viewMode === 'weekly' ? (
+          <main className="flex-1 overflow-hidden">
+            <WeeklyScheduleView
+              boardId={boardId || ''}
+              features={features}
+              tasks={tasks}
+              milestones={milestones}
+              onViewFeature={(featureId) => {
+                const feature = features.find((f) => f.id === featureId);
+                if (feature) handleFeatureClick(feature);
+              }}
+              onViewTask={(taskId) => {
+                const task = tasks.find((t) => t.id === taskId);
+                if (task) handleTaskClick(task);
+              }}
+              onUpdateTaskDates={async (taskId, startDate, endDate) => {
+                try {
+                  const updatedTask = await taskService.updateTaskDates(boardId || '', taskId, {
+                    start_date: startDate,
+                    end_date: endDate,
+                  });
+                  // 로컬 상태 업데이트
+                  setTasks((prev) =>
+                    prev.map((t) =>
+                      t.id === taskId
+                        ? { ...t, start_date: updatedTask.start_date, due_date: updatedTask.due_date }
+                        : t
+                    )
+                  );
+                } catch (error) {
+                  console.error('Failed to update task dates:', error);
+                }
+              }}
+              onCreateMilestone={() => handleOpenMilestoneModal()}
+              onEditMilestone={(milestone) => handleOpenMilestoneModal(milestone)}
+              initialSelectedMilestoneId={board?.selected_milestone_id}
+              onMilestoneChange={async (milestoneId) => {
+                try {
+                  await boardService.updateSelectedMilestone(boardId || '', milestoneId);
+                  setBoard((prev) => prev ? { ...prev, selected_milestone_id: milestoneId } : prev);
+                } catch (error) {
+                  console.error('Failed to save selected milestone:', error);
+                }
+              }}
+            />
+          </main>
+        ) : viewMode === 'kanban' ? (
           <main className="p-6 overflow-x-auto">
             <div className="flex gap-4 min-w-max">
               {sortedBlocks.map((block, index) => {
@@ -864,6 +1010,15 @@ export function KanbanBoardPage() {
             <DailyScheduleView
               boardId={boardId || ''}
               boardMembers={boardMembersData}
+              onViewFeature={(featureId) => {
+                const feature = features.find((f) => f.id === featureId);
+                if (feature) handleFeatureClick(feature);
+              }}
+              onViewTask={(taskId) => {
+                const task = tasks.find((t) => t.id === taskId);
+                if (task) handleTaskClick(task);
+              }}
+              refreshTrigger={scheduleRefreshKey}
             />
           </main>
         )}
@@ -948,6 +1103,18 @@ export function KanbanBoardPage() {
           activities={activities}
           hasMore={hasMoreActivity}
           onLoadMore={handleLoadMoreActivity}
+        />
+
+        <MilestoneModal
+          isOpen={isMilestoneModalOpen}
+          onClose={() => {
+            setIsMilestoneModalOpen(false);
+            setSelectedMilestone(null);
+          }}
+          milestone={selectedMilestone}
+          features={features}
+          onSave={handleSaveMilestone}
+          onDelete={handleDeleteMilestone}
         />
       </div>
     </DragProvider>

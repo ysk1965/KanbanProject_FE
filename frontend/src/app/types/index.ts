@@ -65,6 +65,7 @@ export interface Board {
   is_starred: boolean;
   member_count: number;
   subscription: BoardSubscription;
+  selected_milestone_id?: string | null;
   created_at: string;
   updated_at?: string;
 }
@@ -167,6 +168,7 @@ export interface Task {
   title: string;
   description?: string;
   assignee: Assignee | null;
+  start_date: string | null;  // 시작일 (위클리 스케줄용)
   due_date: string | null;
   estimated_minutes: number | null;
   completed: boolean;
@@ -181,6 +183,32 @@ export interface Task {
   // Legacy compatibility
   boardId?: string;
   currentBlock?: string;
+}
+
+// ========================================
+// 마일스톤 타입
+// ========================================
+
+export interface MilestoneFeatureInfo {
+  id: string;
+  title: string;
+  color: string;
+  total_tasks: number;
+  completed_tasks: number;
+  progress_percentage: number;
+}
+
+export interface Milestone {
+  id: string;
+  title: string;
+  description?: string;
+  start_date: string;
+  end_date: string;
+  feature_count: number;
+  progress_percentage: number;
+  features?: MilestoneFeatureInfo[];
+  created_by?: { id: string; name: string };
+  created_at?: string;
 }
 
 // ========================================

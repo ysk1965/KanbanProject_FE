@@ -11,6 +11,7 @@ import {
   activityAPI,
   pricingAPI,
   checklistAPI,
+  milestoneAPI,
 } from './api';
 import {
   mockBoards,
@@ -36,6 +37,7 @@ import type {
   PricingPlan,
   ChecklistItem,
   User,
+  Milestone,
 } from '../types';
 
 // API 호출 실패 시 목업 데이터 사용
@@ -135,6 +137,16 @@ export const boardService = {
         saveToLocalStorage('kanban_boards', updatedBoards);
         return;
       }
+      throw error;
+    }
+  },
+
+  updateSelectedMilestone: async (boardId: string, milestoneId: string | null): Promise<Board> => {
+    try {
+      const board = await boardAPI.updateSelectedMilestone(boardId, milestoneId);
+      return board;
+    } catch (error) {
+      console.warn('API failed for updateSelectedMilestone', error);
       throw error;
     }
   },
@@ -446,6 +458,7 @@ export const taskService = {
       title: string;
       description?: string;
       assignee_id?: string;
+      start_date?: string;
       due_date?: string;
       estimated_minutes?: number;
     }
@@ -471,6 +484,7 @@ export const taskService = {
           title: data.title,
           description: data.description,
           assignee: null,
+          start_date: data.start_date || null,
           due_date: data.due_date || null,
           estimated_minutes: data.estimated_minutes || null,
           completed: false,
@@ -493,6 +507,7 @@ export const taskService = {
       title?: string;
       description?: string;
       assignee_id?: string | null;
+      start_date?: string | null;
       due_date?: string | null;
       estimated_minutes?: number | null;
     }
@@ -552,6 +567,33 @@ export const taskService = {
         const updatedTasks = tasks.map((t: Task) =>
           t.id === taskId
             ? { ...t, block_id: targetBlockId, position, completed: isCompleted }
+            : t
+        );
+        saveToLocalStorage('kanban_tasks', updatedTasks);
+        return updatedTasks.find((t: Task) => t.id === taskId)!;
+      }
+      throw error;
+    }
+  },
+
+  updateTaskDates: async (
+    boardId: string,
+    taskId: string,
+    data: {
+      start_date?: string | null;
+      end_date?: string | null;
+    }
+  ): Promise<Task> => {
+    try {
+      const task = await taskAPI.updateTaskDates(boardId, taskId, data);
+      return task;
+    } catch (error) {
+      console.warn('API failed, using mock data for update task dates', error);
+      if (USE_MOCK_ON_ERROR) {
+        const tasks = loadFromLocalStorage('kanban_tasks', mockTasks);
+        const updatedTasks = tasks.map((t: Task) =>
+          t.id === taskId
+            ? { ...t, start_date: data.start_date ?? t.start_date, due_date: data.end_date ?? t.due_date }
             : t
         );
         saveToLocalStorage('kanban_tasks', updatedTasks);
@@ -1109,6 +1151,183 @@ export const pricingService = {
           trial_days: '7',
         };
       }
+      throw error;
+    }
+  },
+};
+
+// ========================================
+// Milestone Service
+// ========================================
+
+export const milestoneService = {
+  getMilestones: async (boardId: string): Promise<Milestone[]> => {
+    try {
+      const response = await milestoneAPI.getMilestones(boardId);
+      // 각 마일스톤의 상세 정보(features 포함)를 가져옴
+      const milestonesWithDetails = await Promise.all(
+        response.milestones.map(async (m) => {
+          try {
+            const detail = await milestoneAPI.getMilestone(boardId, m.id);
+            return {
+              id: detail.id,
+              title: detail.title,
+              description: detail.description,
+              start_date: detail.start_date,
+              end_date: detail.end_date,
+              feature_count: detail.feature_count,
+              progress_percentage: detail.progress_percentage,
+              features: detail.features,
+              created_by: detail.created_by,
+              created_at: detail.created_at,
+            };
+          } catch {
+            // 상세 조회 실패 시 기본 정보만 반환
+            return {
+              id: m.id,
+              title: m.title,
+              start_date: m.start_date,
+              end_date: m.end_date,
+              feature_count: m.feature_count,
+              progress_percentage: m.progress_percentage,
+            };
+          }
+        })
+      );
+      return milestonesWithDetails;
+    } catch (error) {
+      console.warn('API failed, using empty array for milestones', error);
+      if (USE_MOCK_ON_ERROR) {
+        return [];
+      }
+      throw error;
+    }
+  },
+
+  getMilestone: async (boardId: string, milestoneId: string): Promise<Milestone> => {
+    try {
+      const m = await milestoneAPI.getMilestone(boardId, milestoneId);
+      return {
+        id: m.id,
+        title: m.title,
+        description: m.description,
+        start_date: m.start_date,
+        end_date: m.end_date,
+        feature_count: m.feature_count,
+        progress_percentage: m.progress_percentage,
+        features: m.features,
+        created_by: m.created_by,
+        created_at: m.created_at,
+      };
+    } catch (error) {
+      console.warn('API failed for getMilestone', error);
+      throw error;
+    }
+  },
+
+  createMilestone: async (
+    boardId: string,
+    data: {
+      title: string;
+      description?: string;
+      start_date: string;
+      end_date: string;
+      feature_ids?: string[];
+    }
+  ): Promise<Milestone> => {
+    try {
+      const m = await milestoneAPI.createMilestone(boardId, data);
+      return {
+        id: m.id,
+        title: m.title,
+        description: m.description,
+        start_date: m.start_date,
+        end_date: m.end_date,
+        feature_count: m.feature_count,
+        progress_percentage: m.progress_percentage,
+        features: m.features,
+        created_by: m.created_by,
+        created_at: m.created_at,
+      };
+    } catch (error) {
+      console.warn('API failed for createMilestone', error);
+      throw error;
+    }
+  },
+
+  updateMilestone: async (
+    boardId: string,
+    milestoneId: string,
+    data: {
+      title?: string;
+      description?: string;
+      start_date?: string;
+      end_date?: string;
+    }
+  ): Promise<Milestone> => {
+    try {
+      const m = await milestoneAPI.updateMilestone(boardId, milestoneId, data);
+      return {
+        id: m.id,
+        title: m.title,
+        description: m.description,
+        start_date: m.start_date,
+        end_date: m.end_date,
+        feature_count: m.feature_count,
+        progress_percentage: m.progress_percentage,
+        features: m.features,
+        created_by: m.created_by,
+        created_at: m.created_at,
+      };
+    } catch (error) {
+      console.warn('API failed for updateMilestone', error);
+      throw error;
+    }
+  },
+
+  deleteMilestone: async (boardId: string, milestoneId: string): Promise<void> => {
+    try {
+      await milestoneAPI.deleteMilestone(boardId, milestoneId);
+    } catch (error) {
+      console.warn('API failed for deleteMilestone', error);
+      throw error;
+    }
+  },
+
+  addFeatures: async (
+    boardId: string,
+    milestoneId: string,
+    featureIds: string[]
+  ): Promise<Milestone> => {
+    try {
+      const m = await milestoneAPI.addFeatures(boardId, milestoneId, featureIds);
+      return {
+        id: m.id,
+        title: m.title,
+        description: m.description,
+        start_date: m.start_date,
+        end_date: m.end_date,
+        feature_count: m.feature_count,
+        progress_percentage: m.progress_percentage,
+        features: m.features,
+        created_by: m.created_by,
+        created_at: m.created_at,
+      };
+    } catch (error) {
+      console.warn('API failed for addFeatures', error);
+      throw error;
+    }
+  },
+
+  removeFeature: async (
+    boardId: string,
+    milestoneId: string,
+    featureId: string
+  ): Promise<void> => {
+    try {
+      await milestoneAPI.removeFeature(boardId, milestoneId, featureId);
+    } catch (error) {
+      console.warn('API failed for removeFeature', error);
       throw error;
     }
   },

@@ -94,13 +94,28 @@ class ApiClient {
         throw errorData;
       }
 
-      // 204 No Content 처리
+      // 204 No Content 또는 빈 응답 처리
       if (response.status === 204) {
         console.log(`✅ [API Response] ${options?.method || 'GET'} ${url}`, { status: 204, data: null });
         return {} as T;
       }
 
-      const data = await response.json();
+      // Content-Length가 0이거나 응답 본문이 비어있는 경우 처리
+      const contentLength = response.headers.get('Content-Length');
+      const contentType = response.headers.get('Content-Type');
+
+      if (contentLength === '0' || !contentType?.includes('application/json')) {
+        console.log(`✅ [API Response] ${options?.method || 'GET'} ${url}`, { status: response.status, data: null });
+        return {} as T;
+      }
+
+      const text = await response.text();
+      if (!text || text.trim() === '') {
+        console.log(`✅ [API Response] ${options?.method || 'GET'} ${url}`, { status: response.status, data: null });
+        return {} as T;
+      }
+
+      const data = JSON.parse(text);
 
       // Success Response 로깅
       console.log(`✅ [API Response] ${options?.method || 'GET'} ${url}`, {
@@ -223,6 +238,7 @@ export interface BoardDetail {
   is_starred: boolean;
   member_count: number;
   subscription: BoardSubscription;
+  selected_milestone_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -280,6 +296,7 @@ export interface TaskResponse {
   title: string;
   description?: string;
   assignee: AssigneeResponse | null;
+  start_date: string | null;
   due_date: string | null;
   estimated_minutes: number | null;
   completed: boolean;
@@ -314,6 +331,38 @@ export interface ChecklistResponse {
   total: number;
   completed: number;
   items: ChecklistItemResponse[];
+}
+
+// Milestone Response Types
+export interface MilestoneFeatureInfoResponse {
+  id: string;
+  title: string;
+  color: string;
+  total_tasks: number;
+  completed_tasks: number;
+  progress_percentage: number;
+}
+
+export interface MilestoneSimpleResponse {
+  id: string;
+  title: string;
+  start_date: string;
+  end_date: string;
+  feature_count: number;
+  progress_percentage: number;
+}
+
+export interface MilestoneDetailResponse {
+  id: string;
+  title: string;
+  description?: string;
+  start_date: string;
+  end_date: string;
+  feature_count: number;
+  progress_percentage: number;
+  features: MilestoneFeatureInfoResponse[];
+  created_by: { id: string; name: string };
+  created_at: string;
 }
 
 export interface MemberUserResponse {
@@ -490,6 +539,12 @@ export const boardAPI = {
   toggleStar: async (boardId: string) => {
     return apiClient.patch<{ board_id: string; is_starred: boolean }>(`/boards/${boardId}/star`);
   },
+
+  updateSelectedMilestone: async (boardId: string, milestoneId: string | null) => {
+    return apiClient.patch<BoardDetail>(`/boards/${boardId}/selected-milestone`, {
+      milestone_id: milestoneId,
+    });
+  },
 };
 
 // ========================================
@@ -612,6 +667,7 @@ export const taskAPI = {
       title: string;
       description?: string;
       assignee_id?: string;
+      start_date?: string;
       due_date?: string;
       estimated_minutes?: number;
     }
@@ -629,11 +685,23 @@ export const taskAPI = {
       title?: string;
       description?: string;
       assignee_id?: string | null;
+      start_date?: string | null;
       due_date?: string | null;
       estimated_minutes?: number | null;
     }
   ) => {
     return apiClient.put<TaskResponse>(`/boards/${boardId}/tasks/${taskId}`, data);
+  },
+
+  updateTaskDates: async (
+    boardId: string,
+    taskId: string,
+    data: {
+      start_date?: string | null;
+      end_date?: string | null;
+    }
+  ) => {
+    return apiClient.put<TaskResponse>(`/boards/${boardId}/tasks/${taskId}/dates`, data);
   },
 
   deleteTask: async (boardId: string, taskId: string) => {
@@ -851,6 +919,7 @@ export const pricingAPI = {
 export interface ScheduleSettingsResponse {
   work_hours_per_day: number;
   work_start_time: string; // "HH:mm:ss" format
+  schedule_display_mode: 'TIME' | 'BLOCK';
 }
 
 export interface ScheduleUserInfo {
@@ -1024,6 +1093,7 @@ export const scheduleAPI = {
     data: {
       work_hours_per_day?: number;
       work_start_time?: string;
+      schedule_display_mode?: 'TIME' | 'BLOCK';
     }
   ) => {
     return apiClient.put<ScheduleSettingsResponse>(
@@ -1053,6 +1123,73 @@ export const boardChecklistAPI = {
     const queryString = query.toString();
     return apiClient.get<BoardChecklistResponse>(
       `/boards/${boardId}/checklist-items${queryString ? `?${queryString}` : ''}`
+    );
+  },
+};
+
+// ========================================
+// Milestone API
+// ========================================
+
+export const milestoneAPI = {
+  getMilestones: async (boardId: string) => {
+    return apiClient.get<{ milestones: MilestoneSimpleResponse[] }>(`/boards/${boardId}/milestones`);
+  },
+
+  getMilestone: async (boardId: string, milestoneId: string) => {
+    return apiClient.get<MilestoneDetailResponse>(`/boards/${boardId}/milestones/${milestoneId}`);
+  },
+
+  createMilestone: async (
+    boardId: string,
+    data: {
+      title: string;
+      description?: string;
+      start_date: string;
+      end_date: string;
+      feature_ids?: string[];
+    }
+  ) => {
+    return apiClient.post<MilestoneDetailResponse>(`/boards/${boardId}/milestones`, {
+      title: data.title,
+      description: data.description,
+      start_date: data.start_date,
+      end_date: data.end_date,
+      feature_ids: data.feature_ids,
+    });
+  },
+
+  updateMilestone: async (
+    boardId: string,
+    milestoneId: string,
+    data: {
+      title?: string;
+      description?: string;
+      start_date?: string;
+      end_date?: string;
+    }
+  ) => {
+    return apiClient.put<MilestoneDetailResponse>(`/boards/${boardId}/milestones/${milestoneId}`, {
+      title: data.title,
+      description: data.description,
+      start_date: data.start_date,
+      end_date: data.end_date,
+    });
+  },
+
+  deleteMilestone: async (boardId: string, milestoneId: string) => {
+    return apiClient.delete<{ message: string }>(`/boards/${boardId}/milestones/${milestoneId}`);
+  },
+
+  addFeatures: async (boardId: string, milestoneId: string, featureIds: string[]) => {
+    return apiClient.post<MilestoneDetailResponse>(`/boards/${boardId}/milestones/${milestoneId}/features`, {
+      feature_ids: featureIds,
+    });
+  },
+
+  removeFeature: async (boardId: string, milestoneId: string, featureId: string) => {
+    return apiClient.delete<{ message: string }>(
+      `/boards/${boardId}/milestones/${milestoneId}/features/${featureId}`
     );
   },
 };

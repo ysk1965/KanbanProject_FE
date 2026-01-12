@@ -11,7 +11,9 @@
       "Bash(npm run dev:*)",
       "Bash(npm install:*)",
       "Bash(./gradlew compileJava:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(./gradlew build:*)",
+      "Bash(lsof:*)"
     ]
   }
 }

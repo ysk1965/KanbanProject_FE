@@ -6,8 +6,8 @@ import { ko } from 'date-fns/locale';
 import { BoardMember } from './ShareBoardModal';
 import { ScheduleBlock } from './ScheduleBlock';
 import { ScheduleDetailPanel } from './ScheduleDetailPanel';
-import { ActionChoiceModal } from './ActionChoiceModal';
-import { ChecklistSelectModal } from './ChecklistSelectModal';
+import { ChecklistCreateModal } from './ChecklistCreateModal';
+import { ScheduleSettingsModal, ScheduleDisplayMode } from './ScheduleSettingsModal';
 import {
   scheduleAPI,
   ScheduleBlockInfo,
@@ -18,6 +18,9 @@ import {
 interface DailyScheduleViewProps {
   boardId: string;
   boardMembers: BoardMember[];
+  onViewFeature?: (featureId: string) => void;
+  onViewTask?: (taskId: string) => void;
+  refreshTrigger?: number;
 }
 
 const SLOT_HEIGHT = 40; // 30분 슬롯의 높이 (px)
@@ -37,7 +40,7 @@ const parseHour = (time: string): number => {
   return parseInt(time.split(':')[0], 10);
 };
 
-export function DailyScheduleView({ boardId, boardMembers }: DailyScheduleViewProps) {
+export function DailyScheduleView({ boardId, boardMembers, onViewFeature, onViewTask, refreshTrigger }: DailyScheduleViewProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(startOfDay(new Date()));
   const [isLoading, setIsLoading] = useState(false);
   const [columns, setColumns] = useState<ScheduleColumnInfo[]>([]);
@@ -59,10 +62,18 @@ export function DailyScheduleView({ boardId, boardMembers }: DailyScheduleViewPr
     userId: string;
     startTime: string;
     endTime: string;
+    startSlotIndex: number;
+    endSlotIndex: number;
   } | null>(null);
 
-  // 체크리스트 선택 모달 상태
-  const [showChecklistSelect, setShowChecklistSelect] = useState(false);
+  // 체크리스트 모달 상태 (선택 + 생성 통합)
+  const [showChecklistModal, setShowChecklistModal] = useState(false);
+
+  // 설정 모달 상태
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+
+  // 설정에서 표시 모드 가져오기 (TIME -> time, BLOCK -> block)
+  const displayMode: ScheduleDisplayMode = settings?.schedule_display_mode === 'BLOCK' ? 'block' : 'time';
 
   // 설정에서 시간 범위 계산
   const workStartHour = settings ? parseHour(settings.work_start_time) : 9;
@@ -93,7 +104,21 @@ export function DailyScheduleView({ boardId, boardMembers }: DailyScheduleViewPr
 
   useEffect(() => {
     loadSchedule();
-  }, [loadSchedule]);
+  }, [loadSchedule, refreshTrigger]);
+
+  // 스케줄 데이터가 변경되면 선택된 블록도 업데이트
+  useEffect(() => {
+    if (selectedBlock && columns.length > 0) {
+      // 모든 컬럼에서 선택된 블록 찾기
+      for (const col of columns) {
+        const updatedBlock = col.blocks.find((b) => b.id === selectedBlock.id);
+        if (updatedBlock) {
+          setSelectedBlock(updatedBlock);
+          break;
+        }
+      }
+    }
+  }, [columns]);
 
   const handlePrevDay = () => setSelectedDate(subDays(selectedDate, 1));
   const handleNextDay = () => setSelectedDate(addDays(selectedDate, 1));
@@ -149,12 +174,15 @@ export function DailyScheduleView({ boardId, boardMembers }: DailyScheduleViewPr
       const startTime = timeSlots[minIndex];
       const endTime = timeSlots[maxIndex + 1] || `${workEndHour}:00`;
 
-      // Action Choice 모달 열기
+      // 체크리스트 모달 열기
       setPendingBlock({
         userId,
         startTime,
         endTime,
+        startSlotIndex: minIndex,
+        endSlotIndex: maxIndex,
       });
+      setShowChecklistModal(true);
     }
 
     setIsDragging(false);
@@ -190,33 +218,30 @@ export function DailyScheduleView({ boardId, boardMembers }: DailyScheduleViewPr
     loadSchedule();
   };
 
-  // Action Choice: 새 체크리스트 아이템 생성
-  const handleCreateNewChecklistItem = async () => {
+  // 새 체크리스트 아이템 생성 후 블록 생성
+  const handleChecklistCreate = async (taskId: string, title: string) => {
     if (!pendingBlock) return;
 
-    // TODO: 체크리스트 생성 모달 열기
-    // 지금은 빈 블록 생성
     try {
-      await scheduleAPI.createBlock(boardId, {
+      await scheduleAPI.createWithChecklistItem(boardId, {
         assignee_id: pendingBlock.userId,
         scheduled_date: format(selectedDate, 'yyyy-MM-dd'),
         start_time: pendingBlock.startTime,
         end_time: pendingBlock.endTime,
+        checklist_item: {
+          task_id: taskId,
+          title: title,
+        },
       });
       await loadSchedule();
     } catch (error) {
-      console.error('Failed to create block:', error);
+      console.error('Failed to create block with new checklist item:', error);
     }
+    setShowChecklistModal(false);
     setPendingBlock(null);
   };
 
-  // Action Choice: 기존 체크리스트 연결
-  const handleConnectExisting = () => {
-    if (!pendingBlock) return;
-    setShowChecklistSelect(true);
-  };
-
-  // 체크리스트 아이템 선택 후 블록 생성
+  // 기존 체크리스트 아이템 선택 후 블록 생성
   const handleChecklistItemSelect = async (checklistItemId: string) => {
     if (!pendingBlock) return;
 
@@ -232,12 +257,13 @@ export function DailyScheduleView({ boardId, boardMembers }: DailyScheduleViewPr
     } catch (error) {
       console.error('Failed to create block with checklist item:', error);
     }
-    setShowChecklistSelect(false);
+    setShowChecklistModal(false);
     setPendingBlock(null);
   };
 
-  // Action Choice 모달 닫기
-  const handleCloseActionChoice = () => {
+  // 체크리스트 모달 닫기
+  const handleCloseChecklistModal = () => {
+    setShowChecklistModal(false);
     setPendingBlock(null);
   };
 
@@ -314,6 +340,7 @@ export function DailyScheduleView({ boardId, boardMembers }: DailyScheduleViewPr
         <Button
           variant="outline"
           size="sm"
+          onClick={() => setShowSettingsModal(true)}
           className="border-gray-600 text-gray-300 hover:bg-[#3a4149] hover:text-white"
         >
           <Settings className="h-4 w-4 mr-2" />
@@ -324,10 +351,10 @@ export function DailyScheduleView({ boardId, boardMembers }: DailyScheduleViewPr
       {/* 스케줄 그리드 */}
       <div className="flex-1 overflow-auto">
         <div className="min-w-max">
-          {/* 헤더: 시간 + 멤버 컬럼 */}
+          {/* 헤더: 시간/블록 + 멤버 컬럼 */}
           <div className="flex sticky top-0 bg-[#282e33] z-10 border-b border-gray-700">
             <div className="w-20 flex-shrink-0 p-3 text-sm font-medium text-gray-400 border-r border-gray-700">
-              시간
+              {displayMode === 'block' ? '블록' : '시간'}
             </div>
             {boardMembers.map((member) => (
               <div
@@ -351,9 +378,11 @@ export function DailyScheduleView({ boardId, boardMembers }: DailyScheduleViewPr
           <div className="relative">
             {timeSlots.map((time, slotIndex) => (
               <div key={time} className="flex border-b border-gray-800">
-                {/* 시간 라벨 */}
+                {/* 시간/블록 라벨 */}
                 <div className="w-20 flex-shrink-0 p-2 text-xs text-gray-500 border-r border-gray-700 bg-[#1d2125]">
-                  {time.endsWith(':00') ? time : ''}
+                  {displayMode === 'block'
+                    ? `${slotIndex + 1}`
+                    : time.endsWith(':00') ? time : ''}
                 </div>
                 {/* 멤버별 시간 셀 */}
                 {boardMembers.map((member) => {
@@ -401,8 +430,10 @@ export function DailyScheduleView({ boardId, boardMembers }: DailyScheduleViewPr
                           slotHeight={SLOT_HEIGHT}
                           workStartHour={workStartHour}
                           workEndHour={workEndHour}
+                          otherBlocks={blocks}
                           onClick={handleBlockClick}
                           onResize={handleBlockResize}
+                          onMove={handleBlockResize}
                         />
                       ))}
                     </div>
@@ -427,35 +458,52 @@ export function DailyScheduleView({ boardId, boardMembers }: DailyScheduleViewPr
           block={selectedBlock}
           boardId={boardId}
           selectedDate={selectedDate}
+          displayMode={displayMode}
+          workStartHour={workStartHour}
           onClose={handleClosePanel}
           onDelete={handleBlockDeleted}
           onChecklistToggle={handleChecklistToggled}
+          onViewFeature={onViewFeature}
+          onViewTask={onViewTask}
         />
       )}
 
-      {/* Action Choice 모달 */}
-      {pendingBlock && !showChecklistSelect && (
-        <ActionChoiceModal
-          startTime={pendingBlock.startTime}
-          endTime={pendingBlock.endTime}
-          onCreateNew={handleCreateNewChecklistItem}
-          onConnectExisting={handleConnectExisting}
-          onClose={handleCloseActionChoice}
-        />
-      )}
-
-      {/* 체크리스트 선택 모달 */}
-      {pendingBlock && showChecklistSelect && (
-        <ChecklistSelectModal
+      {/* 체크리스트 모달 (선택 + 생성 통합) */}
+      {pendingBlock && showChecklistModal && (
+        <ChecklistCreateModal
           boardId={boardId}
           assigneeId={pendingBlock.userId}
           startTime={pendingBlock.startTime}
           endTime={pendingBlock.endTime}
-          onSelect={handleChecklistItemSelect}
-          onClose={() => {
-            setShowChecklistSelect(false);
-            setPendingBlock(null);
+          displayMode={displayMode}
+          startBlockIndex={pendingBlock.startSlotIndex}
+          endBlockIndex={pendingBlock.endSlotIndex}
+          onCreate={handleChecklistCreate}
+          onSelectExisting={handleChecklistItemSelect}
+          onClose={handleCloseChecklistModal}
+        />
+      )}
+
+      {/* 설정 모달 */}
+      {showSettingsModal && settings && (
+        <ScheduleSettingsModal
+          currentStartTime={settings.work_start_time}
+          currentWorkHours={settings.work_hours_per_day}
+          currentDisplayMode={displayMode}
+          onSave={async (startTime, workHours, newDisplayMode) => {
+            try {
+              await scheduleAPI.updateSettings(boardId, {
+                work_start_time: startTime,
+                work_hours_per_day: workHours,
+                schedule_display_mode: newDisplayMode === 'block' ? 'BLOCK' : 'TIME',
+              });
+              await loadSchedule();
+              setShowSettingsModal(false);
+            } catch (error) {
+              console.error('Failed to update settings:', error);
+            }
           }}
+          onClose={() => setShowSettingsModal(false)}
         />
       )}
     </div>

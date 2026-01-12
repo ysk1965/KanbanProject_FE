@@ -9,3 +9,17 @@
 
   Run `npm run dev` to start the development server.
   
+    cd /Users/cookapps/Documents/GitHub/KanbanProject/backend
+
+  # Gradle로 실행
+  ./gradlew bootRun
+
+
+  ⏺ # Java/Spring Boot 서버 죽이기
+  pkill -f 'java.*kanban'
+
+  # 또는 포트로 찾아서 죽이기 (8080 포트 기준)
+  lsof -ti:8080 | xargs kill -9
+
+  # 프론트엔드 (Vite) 죽이기
+  lsof -ti:5173 | xargs kill -9

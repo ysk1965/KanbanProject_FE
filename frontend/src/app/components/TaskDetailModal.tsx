@@ -375,15 +375,58 @@ export function TaskDetailModal({
               />
             </div>
 
-            {/* 마감일 & 예상 시간 */}
+            {/* 기간 & 예상 시간 */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>마감일</Label>
-                <Input
-                  type="date"
-                  value={editedTask.due_date || ''}
-                  onChange={(e) => updateEditedTask({ due_date: e.target.value })}
-                />
+                <Label>기간</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full h-10 justify-start text-left font-normal"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {editedTask.start_date || editedTask.due_date ? (
+                        <>
+                          {editedTask.start_date ? format(new Date(editedTask.start_date), 'yyyy. MM. dd.', { locale: ko }) : '시작일 미정'}
+                          {' ~ '}
+                          {editedTask.due_date ? format(new Date(editedTask.due_date), 'yyyy. MM. dd.', { locale: ko }) : '종료일 미정'}
+                        </>
+                      ) : (
+                        <span className="text-gray-400">날짜를 선택하세요</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="range"
+                      selected={{
+                        from: editedTask.start_date ? new Date(editedTask.start_date) : undefined,
+                        to: editedTask.due_date ? new Date(editedTask.due_date) : undefined,
+                      }}
+                      onSelect={(range) => {
+                        updateEditedTask({
+                          start_date: range?.from ? format(range.from, 'yyyy-MM-dd') : null,
+                          due_date: range?.to ? format(range.to, 'yyyy-MM-dd') : null,
+                        });
+                      }}
+                      numberOfMonths={2}
+                      locale={ko}
+                    />
+                    {(editedTask.start_date || editedTask.due_date) && (
+                      <div className="p-2 border-t">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full text-xs text-red-500 hover:text-red-700"
+                          onClick={() => updateEditedTask({ start_date: null, due_date: null })}
+                        >
+                          날짜 삭제
+                        </Button>
+                      </div>
+                    )}
+                  </PopoverContent>
+                </Popover>
               </div>
 
               <div className="space-y-2">
