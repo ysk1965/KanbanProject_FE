@@ -12,6 +12,8 @@ import {
   pricingAPI,
   checklistAPI,
   milestoneAPI,
+  statisticsAPI,
+  testDataAPI,
 } from './api';
 import {
   mockBoards,
@@ -38,6 +40,14 @@ import type {
   ChecklistItem,
   User,
   Milestone,
+  BoardTierInfo,
+  BoardLimits,
+  SeatPricing,
+  BoardStatistics,
+  PersonalStatistics,
+  BoardWeightSettings,
+  WeightLevel,
+  StatisticsFilter,
 } from '../types';
 
 // API 호출 실패 시 목업 데이터 사용
@@ -150,6 +160,42 @@ export const boardService = {
       throw error;
     }
   },
+
+  getBoardTier: async (boardId: string): Promise<BoardTierInfo> => {
+    try {
+      const tierInfo = await boardAPI.getBoardTier(boardId);
+      return tierInfo;
+    } catch (error) {
+      console.warn('API failed, using mock data for board tier', error);
+      if (USE_MOCK_ON_ERROR) {
+        return {
+          tier: 'TRIAL',
+          trial_ends_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          can_access_schedule: true,
+          can_access_milestone: true,
+          can_access_statistics: true,
+        };
+      }
+      throw error;
+    }
+  },
+
+  getBoardLimits: async (boardId: string): Promise<BoardLimits> => {
+    try {
+      const limits = await boardAPI.getBoardLimits(boardId);
+      return limits;
+    } catch (error) {
+      console.warn('API failed, using mock data for board limits', error);
+      if (USE_MOCK_ON_ERROR) {
+        return {
+          task_limit: null, // Premium에서는 무제한
+          current_task_count: 0,
+          can_create_task: true,
+        };
+      }
+      throw error;
+    }
+  },
 };
 
 // ========================================
@@ -257,9 +303,9 @@ export const blockService = {
 // ========================================
 
 export const featureService = {
-  getFeatures: async (boardId: string): Promise<Feature[]> => {
+  getFeatures: async (boardId: string, milestoneId?: string): Promise<Feature[]> => {
     try {
-      const response = await featureAPI.getFeatures(boardId);
+      const response = await featureAPI.getFeatures(boardId, milestoneId);
       return response.features;
     } catch (error) {
       console.warn('API failed, using mock data for features', error);
@@ -416,7 +462,7 @@ export const featureService = {
 export const taskService = {
   getTasks: async (
     boardId: string,
-    params?: { block_id?: string; feature_id?: string }
+    params?: { block_id?: string; feature_id?: string; milestone_id?: string }
   ): Promise<Task[]> => {
     try {
       const response = await taskAPI.getTasks(boardId, params);
@@ -1070,6 +1116,44 @@ export const subscriptionService = {
       throw error;
     }
   },
+
+  // Seat 기반 가격 조회
+  getSeatPricing: async (boardId: string): Promise<SeatPricing> => {
+    try {
+      const pricing = await subscriptionAPI.getSeatPricing(boardId);
+      return pricing;
+    } catch (error) {
+      console.warn('API failed, using mock data for seat pricing', error);
+      if (USE_MOCK_ON_ERROR) {
+        return {
+          price_per_seat: {
+            monthly: 500, // $5.00 in cents
+            yearly: 5000, // $50.00 in cents
+          },
+          seat_count: 1,
+          estimated_price: {
+            monthly: 500,
+            yearly: 5000,
+          },
+        };
+      }
+      throw error;
+    }
+  },
+
+  // Seat 기반 구독 시작
+  startSeatSubscription: async (
+    boardId: string,
+    data: { billing_cycle: 'MONTHLY' | 'YEARLY'; payment_method_id: string }
+  ): Promise<Subscription> => {
+    try {
+      const subscription = await subscriptionAPI.startSeatSubscription(boardId, data);
+      return subscription;
+    } catch (error) {
+      console.warn('API failed for start seat subscription', error);
+      throw error;
+    }
+  },
 };
 
 // ========================================
@@ -1328,6 +1412,199 @@ export const milestoneService = {
       await milestoneAPI.removeFeature(boardId, milestoneId, featureId);
     } catch (error) {
       console.warn('API failed for removeFeature', error);
+      throw error;
+    }
+  },
+};
+
+// ========================================
+// Statistics Service (Analytics & Productivity)
+// ========================================
+
+// 기본 가중치 레벨 (API 실패 시 사용)
+const DEFAULT_WEIGHT_LEVELS: WeightLevel[] = [
+  { id: 'low', name: 'Low', weight: 0.5, color: '#94A3B8', position: 0 },
+  { id: 'medium', name: 'Medium', weight: 1.0, color: '#6366F1', position: 1, is_default: true },
+  { id: 'high', name: 'High', weight: 1.5, color: '#F59E0B', position: 2 },
+  { id: 'critical', name: 'Critical', weight: 2.0, color: '#EF4444', position: 3 },
+];
+
+// 빈 통계 데이터 (API 실패 시 사용)
+const EMPTY_BOARD_STATISTICS: BoardStatistics = {
+  summary: {
+    total_work_minutes: 0,
+    completed_work_minutes: 0,
+    incomplete_work_minutes: 0,
+    total_tasks: 0,
+    completed_tasks: 0,
+    incomplete_tasks: 0,
+    total_features: 0,
+    completed_features: 0,
+    average_feature_progress: 0,
+    focus_rate: 0,
+    period_start: new Date().toISOString().split('T')[0],
+    period_end: new Date().toISOString().split('T')[0],
+  },
+  by_member: [],
+  by_feature: [],
+  by_milestone: [],
+  by_tag: [],
+  impact: {
+    total_impact_score: 0,
+    by_member: [],
+    by_weight_level: [],
+  },
+  daily_trend: [],
+};
+
+const EMPTY_PERSONAL_STATISTICS: PersonalStatistics = {
+  summary: {
+    total_work_minutes: 0,
+    completed_work_minutes: 0,
+    total_tasks: 0,
+    completed_tasks: 0,
+    impact_score: 0,
+  },
+  by_feature: [],
+  by_tag: [],
+  top_tasks: [],
+  daily_trend: [],
+};
+
+export const statisticsService = {
+  // 보드 전체 통계 조회
+  getBoardStatistics: async (
+    boardId: string,
+    filter?: StatisticsFilter
+  ): Promise<BoardStatistics> => {
+    try {
+      const response = await statisticsAPI.getBoardStatistics(boardId, {
+        start_date: filter?.start_date || undefined,
+        end_date: filter?.end_date || undefined,
+        milestone_ids: filter?.milestone_ids,
+        feature_ids: filter?.feature_ids,
+        member_ids: filter?.member_ids,
+        tag_ids: filter?.tag_ids,
+      });
+
+      return {
+        summary: response.summary,
+        by_member: response.by_member,
+        by_feature: response.by_feature,
+        by_milestone: [], // API에서 별도 조회 필요시 추가
+        by_tag: response.by_tag,
+        impact: response.impact,
+        daily_trend: response.daily_trend,
+      };
+    } catch (error) {
+      console.warn('API failed, using empty statistics', error);
+      if (USE_MOCK_ON_ERROR) {
+        return EMPTY_BOARD_STATISTICS;
+      }
+      throw error;
+    }
+  },
+
+  // 개인 통계 조회 (본인 데이터만)
+  getPersonalStatistics: async (
+    boardId: string,
+    filter?: { start_date?: string; end_date?: string }
+  ): Promise<PersonalStatistics> => {
+    try {
+      const response = await statisticsAPI.getPersonalStatistics(boardId, filter);
+      return response;
+    } catch (error) {
+      console.warn('API failed, using empty personal statistics', error);
+      if (USE_MOCK_ON_ERROR) {
+        return EMPTY_PERSONAL_STATISTICS;
+      }
+      throw error;
+    }
+  },
+
+  // 가중치 레벨 설정 조회
+  getWeightLevels: async (boardId: string): Promise<BoardWeightSettings> => {
+    try {
+      const response = await statisticsAPI.getWeightLevels(boardId);
+      return {
+        board_id: response.board_id,
+        levels: response.levels,
+        default_level_id: response.default_level_id,
+      };
+    } catch (error) {
+      console.warn('API failed, using default weight levels', error);
+      if (USE_MOCK_ON_ERROR) {
+        return {
+          board_id: boardId,
+          levels: DEFAULT_WEIGHT_LEVELS,
+          default_level_id: 'medium',
+        };
+      }
+      throw error;
+    }
+  },
+
+  // 가중치 레벨 설정 저장
+  updateWeightLevels: async (
+    boardId: string,
+    data: {
+      levels: Omit<WeightLevel, 'id' | 'is_default'> & { id?: string }[];
+      default_level_id?: string;
+    }
+  ): Promise<BoardWeightSettings> => {
+    try {
+      const response = await statisticsAPI.updateWeightLevels(boardId, {
+        levels: data.levels.map((l, i) => ({
+          id: l.id,
+          name: l.name,
+          weight: l.weight,
+          color: l.color,
+          position: i,
+        })),
+        default_level_id: data.default_level_id,
+      });
+      return {
+        board_id: response.board_id,
+        levels: response.levels,
+        default_level_id: response.default_level_id,
+      };
+    } catch (error) {
+      console.warn('API failed for updateWeightLevels', error);
+      throw error;
+    }
+  },
+
+  // Task 가중치 설정
+  setTaskWeight: async (
+    boardId: string,
+    taskId: string,
+    weightLevelId: string
+  ): Promise<{ task_id: string; weight_level_id: string }> => {
+    try {
+      const response = await statisticsAPI.setTaskWeight(boardId, taskId, weightLevelId);
+      return response;
+    } catch (error) {
+      console.warn('API failed for setTaskWeight', error);
+      throw error;
+    }
+  },
+
+  // Task 가중치 조회
+  getTaskWeight: async (
+    boardId: string,
+    taskId: string
+  ): Promise<{ task_id: string; weight_level: WeightLevel | null }> => {
+    try {
+      const response = await statisticsAPI.getTaskWeight(boardId, taskId);
+      return {
+        task_id: response.task_id,
+        weight_level: response.weight_level,
+      };
+    } catch (error) {
+      console.warn('API failed, returning null weight level', error);
+      if (USE_MOCK_ON_ERROR) {
+        return { task_id: taskId, weight_level: null };
+      }
       throw error;
     }
   },

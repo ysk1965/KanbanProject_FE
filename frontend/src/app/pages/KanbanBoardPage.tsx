@@ -1,12 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, Users, Settings, Filter, ArrowLeft, Bell, LayoutGrid, Calendar, CalendarDays } from 'lucide-react';
+import { Plus, Users, Settings, Filter, ArrowLeft, Bell, LayoutGrid, Calendar, CalendarDays, Flag, Pencil, Lock, BarChart3 } from 'lucide-react';
 
 // 뷰 모드 타입
-type ViewMode = 'kanban' | 'weekly' | 'schedule';
+type ViewMode = 'kanban' | 'weekly' | 'schedule' | 'statistics';
 import { DragProvider } from '../contexts/DragContext';
 import { useAuth } from '../contexts/AuthContext';
-import { Block, Feature, Task, Priority, Tag, Board, InviteLink, Subscription, PricingPlan, ActivityLog, Milestone } from '../types';
+import { Block, Feature, Task, Priority, Tag, Board, InviteLink, Subscription, PricingPlan, ActivityLog, Milestone, BoardTierInfo, BoardLimits } from '../types';
 import { KanbanBlock } from '../components/KanbanBlock';
 import { FeatureCard } from '../components/FeatureCard';
 import { FeatureDetailModal } from '../components/FeatureDetailModal';
@@ -19,10 +19,19 @@ import { ShareBoardModal, BoardMember as ShareBoardMember, MemberRole } from '..
 import { SubscriptionModal } from '../components/SubscriptionModal';
 import { ActivityLogModal } from '../components/ActivityLogModal';
 import { MilestoneModal } from '../components/MilestoneModal';
+import { UpgradeModal, UpgradeTrigger } from '../components/UpgradeModal';
 import { UserMenu } from '../components/UserMenu';
 import { DailyScheduleView } from '../components/DailyScheduleView';
 import { WeeklyScheduleView } from '../components/WeeklyScheduleView';
+import { StatisticsView } from '../components/StatisticsView';
 import { Button } from '../components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
 import {
   boardService,
   featureService,
@@ -51,6 +60,7 @@ export function KanbanBoardPage() {
   const [board, setBoard] = useState<Board | null>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [features, setFeatures] = useState<Feature[]>([]);
+  const [allFeatures, setAllFeatures] = useState<Feature[]>([]); // 마일스톤 모달용 전체 Feature
   const [tasks, setTasks] = useState<Task[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [inviteLinks, setInviteLinks] = useState<InviteLink[]>([]);
@@ -61,6 +71,12 @@ export function KanbanBoardPage() {
   const [hasMoreActivity, setHasMoreActivity] = useState(false);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Tier & Limits 상태
+  const [tierInfo, setTierInfo] = useState<BoardTierInfo | null>(null);
+  const [boardLimits, setBoardLimits] = useState<BoardLimits | null>(null);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [upgradeTrigger, setUpgradeTrigger] = useState<UpgradeTrigger>('task_limit');
 
   // 체크리스트 펼침 상태
   const [expandedChecklistTaskIds, setExpandedChecklistTaskIds] = useState<Set<string>>(new Set());
@@ -84,6 +100,7 @@ export function KanbanBoardPage() {
   const [isActivityLogModalOpen, setIsActivityLogModalOpen] = useState(false);
   const [isMilestoneModalOpen, setIsMilestoneModalOpen] = useState(false);
   const [selectedMilestone, setSelectedMilestone] = useState<Milestone | null>(null);
+  const [kanbanSelectedMilestoneId, setKanbanSelectedMilestoneId] = useState<string>('all');
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     keyword: '',
     members: [],
@@ -116,6 +133,8 @@ export function KanbanBoardPage() {
           membersData,
           pricingResponse,
           milestonesData,
+          tierData,
+          limitsData,
         ] = await Promise.all([
           boardService.getBoard(boardId),
           blockService.getBlocks(boardId),
@@ -128,12 +147,12 @@ export function KanbanBoardPage() {
           memberService.getMembers(boardId),
           pricingService.getPlans(),
           milestoneService.getMilestones(boardId),
+          boardService.getBoardTier(boardId),
+          boardService.getBoardLimits(boardId),
         ]);
 
         setBoard(boardData);
         setBlocks(blocksData);
-        setFeatures(featuresData);
-        setTasks(tasksData);
         setTags(tagsData);
         setInviteLinks(inviteLinksData);
         setSubscription(subscriptionData);
@@ -142,6 +161,9 @@ export function KanbanBoardPage() {
         setHasMoreActivity(activitiesResponse.has_more);
         setPricingPlans(pricingResponse.plans);
         setMilestones(milestonesData);
+        setTierInfo(tierData);
+        setBoardLimits(limitsData);
+        setAllFeatures(featuresData); // 마일스톤 모달용 전체 Feature 저장
         setBoardMembersData(membersData.members.map((m: any) => ({
           id: m.id,
           userId: m.user.id,
@@ -149,6 +171,20 @@ export function KanbanBoardPage() {
           email: m.user.email,
           role: (m.role === 'VIEWER' ? 'observer' : m.role.toLowerCase()) as MemberRole,
         })));
+
+        // 보드에 선택된 마일스톤이 있으면 해당 마일스톤으로 필터링된 데이터 로드
+        if (boardData.selected_milestone_id) {
+          setKanbanSelectedMilestoneId(boardData.selected_milestone_id);
+          const [filteredFeatures, filteredTasks] = await Promise.all([
+            featureService.getFeatures(boardId, boardData.selected_milestone_id),
+            taskService.getTasks(boardId, { milestone_id: boardData.selected_milestone_id }),
+          ]);
+          setFeatures(filteredFeatures);
+          setTasks(filteredTasks);
+        } else {
+          setFeatures(featuresData);
+          setTasks(tasksData);
+        }
       } catch (error) {
         console.error('Failed to load board data:', error);
         navigate('/boards');
@@ -159,6 +195,132 @@ export function KanbanBoardPage() {
 
     loadBoardData();
   }, [boardId, navigate]);
+
+  // 보드의 선택된 마일스톤 동기화
+  useEffect(() => {
+    if (board?.selected_milestone_id) {
+      setKanbanSelectedMilestoneId(board.selected_milestone_id);
+    } else {
+      setKanbanSelectedMilestoneId('all');
+    }
+  }, [board?.selected_milestone_id]);
+
+  // Premium 기능 접근 제어 헬퍼
+  const canAccessSchedule = tierInfo?.can_access_schedule ?? true;
+  const canAccessMilestone = tierInfo?.can_access_milestone ?? true;
+  const isStandardTier = tierInfo?.tier === 'STANDARD';
+
+  // Upgrade Modal 열기 헬퍼
+  const openUpgradeModal = (trigger: UpgradeTrigger) => {
+    setUpgradeTrigger(trigger);
+    setIsUpgradeModalOpen(true);
+  };
+
+  // 통계 접근 권한 (Premium 보드 + Admin 이상)
+  const canAccessStatistics = tierInfo?.can_access_statistics ?? true;
+  const isAdminOrOwner = boardMembersData?.some(
+    (m) => m.userId === currentUser?.id && (m.role === 'owner' || m.role === 'admin')
+  ) ?? false;
+  const canViewStatistics = canAccessStatistics && isAdminOrOwner;
+
+  // 뷰 모드 변경 핸들러 (Premium 기능 체크)
+  const handleViewModeChange = (mode: ViewMode) => {
+    if (mode === 'weekly' && !canAccessSchedule) {
+      openUpgradeModal('weekly_schedule');
+      return;
+    }
+    if (mode === 'schedule' && !canAccessSchedule) {
+      openUpgradeModal('daily_schedule');
+      return;
+    }
+    if (mode === 'statistics') {
+      if (!canAccessStatistics) {
+        openUpgradeModal('statistics');
+        return;
+      }
+      if (!isAdminOrOwner) {
+        // Admin 권한 없음 알림 (별도 처리 가능)
+        return;
+      }
+    }
+    setViewMode(mode);
+  };
+
+  // 마일스톤 열기 핸들러 (Premium 기능 체크)
+  const handleOpenMilestoneWithCheck = (milestone?: Milestone) => {
+    if (!canAccessMilestone) {
+      openUpgradeModal('milestone');
+      return;
+    }
+    setSelectedMilestone(milestone || null);
+    setIsMilestoneModalOpen(true);
+  };
+
+  // Seat 기반 업그레이드 핸들러
+  const handleSeatUpgrade = async (billingCycle: 'MONTHLY' | 'YEARLY') => {
+    if (!boardId) return;
+    try {
+      const newSubscription = await subscriptionService.startSeatSubscription(boardId, {
+        billing_cycle: billingCycle,
+      });
+      setSubscription(newSubscription);
+      // 업그레이드 후 tier/limits 다시 로드
+      const [tierData, limitsData] = await Promise.all([
+        boardService.getBoardTier(boardId),
+        boardService.getBoardLimits(boardId),
+      ]);
+      setTierInfo(tierData);
+      setBoardLimits(limitsData);
+    } catch (error) {
+      console.error('Failed to upgrade:', error);
+      throw error;
+    }
+  };
+
+  // Task 생성 가능 여부 확인
+  const canCreateTask = boardLimits?.can_create_task ?? true;
+
+  // boardLimits 갱신 함수 (Task 생성/삭제 후 호출)
+  const refreshBoardLimits = async () => {
+    if (!boardId) return;
+    try {
+      const limitsData = await boardService.getBoardLimits(boardId);
+      setBoardLimits(limitsData);
+    } catch (error) {
+      console.error('Failed to refresh board limits:', error);
+    }
+  };
+
+  // Feature와 Task를 milestoneId로 필터링해서 다시 로드
+  const reloadFeaturesAndTasks = async (milestoneId?: string) => {
+    if (!boardId) return;
+    try {
+      const [featuresData, tasksData] = await Promise.all([
+        featureService.getFeatures(boardId, milestoneId),
+        taskService.getTasks(boardId, milestoneId ? { milestone_id: milestoneId } : undefined),
+      ]);
+      setFeatures(featuresData);
+      setTasks(tasksData);
+    } catch (error) {
+      console.error('Failed to reload features and tasks:', error);
+    }
+  };
+
+  // 칸반 뷰 마일스톤 선택 핸들러
+  const handleKanbanMilestoneSelect = async (milestoneId: string) => {
+    setKanbanSelectedMilestoneId(milestoneId);
+    if (boardId) {
+      try {
+        const newMilestoneId = milestoneId === 'all' ? null : milestoneId;
+        await boardService.updateSelectedMilestone(boardId, newMilestoneId);
+        setBoard((prev) => prev ? { ...prev, selected_milestone_id: newMilestoneId } : prev);
+        // 마일스톤에 맞게 Feature와 Task 다시 로드
+        await reloadFeaturesAndTasks(newMilestoneId || undefined);
+      } catch (error) {
+        console.error('Failed to save selected milestone:', error);
+      }
+    }
+  };
 
   // 보드 멤버 관리 함수
   const handleAddMember = async (email: string, role: MemberRole) => {
@@ -407,6 +569,7 @@ export function KanbanBoardPage() {
         due_date: data.dueDate,
       });
       setFeatures([...features, newFeature]);
+      setAllFeatures([...allFeatures, newFeature]); // 전체 Feature 목록에도 추가
     } catch (error) {
       console.error('Failed to create feature:', error);
     }
@@ -432,14 +595,17 @@ export function KanbanBoardPage() {
         due_date: updates.due_date,
       });
       setFeatures(features.map((f) => (f.id === featureId ? updatedFeature : f)));
+      setAllFeatures(allFeatures.map((f) => (f.id === featureId ? updatedFeature : f))); // 전체 Feature 목록도 업데이트
     } catch (error) {
       console.error('Failed to update feature:', error);
       setFeatures(features.map((f) => (f.id === featureId ? { ...f, ...updates } : f)));
+      setAllFeatures(allFeatures.map((f) => (f.id === featureId ? { ...f, ...updates } : f)));
     }
   };
 
   const handleDeleteFeature = (featureId: string) => {
     setFeatures(features.filter((f) => f.id !== featureId));
+    setAllFeatures(allFeatures.filter((f) => f.id !== featureId)); // 전체 Feature 목록에서도 삭제
     setTasks(tasks.filter((t) => t.feature_id !== featureId));
     setIsFeatureModalOpen(false);
     setSelectedFeature(null);
@@ -448,6 +614,12 @@ export function KanbanBoardPage() {
   // Task 관리
   const handleAddSubtask = async (featureId: string, taskTitle: string) => {
     if (!boardId) return;
+
+    // Task 생성 제한 체크
+    if (!canCreateTask) {
+      openUpgradeModal('task_limit');
+      return;
+    }
 
     const feature = features.find((f) => f.id === featureId);
     if (!feature) return;
@@ -460,7 +632,14 @@ export function KanbanBoardPage() {
           f.id === featureId ? { ...f, total_tasks: f.total_tasks + 1 } : f
         )
       );
-    } catch (error) {
+      // Task 생성 후 limits 갱신
+      await refreshBoardLimits();
+    } catch (error: any) {
+      // 서버에서 Task 제한 오류 반환 시 처리
+      if (error?.code === 'T003') {
+        openUpgradeModal('task_limit');
+        return;
+      }
       console.error('Failed to create task:', error);
     }
   };
@@ -534,6 +713,8 @@ export function KanbanBoardPage() {
 
     try {
       await taskService.deleteTask(boardId, taskId);
+      // Task 삭제 후 limits 갱신
+      await refreshBoardLimits();
     } catch (error) {
       console.error('Failed to delete task:', error);
     }
@@ -586,6 +767,11 @@ export function KanbanBoardPage() {
         // 최신 마일스톤 데이터 다시 조회
         const refreshedMilestone = await milestoneService.getMilestone(boardId, selectedMilestone.id);
         setMilestones((prev) => prev.map((m) => (m.id === refreshedMilestone.id ? refreshedMilestone : m)));
+
+        // 현재 선택된 마일스톤이 수정한 마일스톤인 경우 features/tasks 다시 로드
+        if (kanbanSelectedMilestoneId === selectedMilestone.id) {
+          await reloadFeaturesAndTasks(selectedMilestone.id);
+        }
       } else {
         // 생성
         const created = await milestoneService.createMilestone(boardId, data);
@@ -594,6 +780,10 @@ export function KanbanBoardPage() {
         // 생성된 마일스톤으로 보드 선택 업데이트
         await boardService.updateSelectedMilestone(boardId, created.id);
         setBoard((prev) => prev ? { ...prev, selected_milestone_id: created.id } : prev);
+        setKanbanSelectedMilestoneId(created.id);
+
+        // 새 마일스톤으로 데이터 로드
+        await reloadFeaturesAndTasks(created.id);
       }
     } catch (error) {
       console.error('Failed to save milestone:', error);
@@ -607,6 +797,14 @@ export function KanbanBoardPage() {
     try {
       await milestoneService.deleteMilestone(boardId, milestoneId);
       setMilestones((prev) => prev.filter((m) => m.id !== milestoneId));
+
+      // 삭제한 마일스톤이 현재 선택된 마일스톤인 경우 'all'로 변경
+      if (kanbanSelectedMilestoneId === milestoneId) {
+        setKanbanSelectedMilestoneId('all');
+        await boardService.updateSelectedMilestone(boardId, null);
+        setBoard((prev) => prev ? { ...prev, selected_milestone_id: null } : prev);
+        await reloadFeaturesAndTasks(undefined);
+      }
     } catch (error) {
       console.error('Failed to delete milestone:', error);
       throw error;
@@ -654,7 +852,8 @@ export function KanbanBoardPage() {
 
     try {
       await taskService.moveTask(boardId, taskId, targetBlockId, newPosition);
-      const tasksData = await taskService.getTasks(boardId);
+      const milestoneParam = kanbanSelectedMilestoneId !== 'all' ? { milestone_id: kanbanSelectedMilestoneId } : undefined;
+      const tasksData = await taskService.getTasks(boardId, milestoneParam);
       setTasks(tasksData);
     } catch (error) {
       console.error('Failed to move task:', error);
@@ -670,7 +869,8 @@ export function KanbanBoardPage() {
 
     try {
       await taskService.moveTask(boardId, taskId, blockId, newPosition);
-      const tasksData = await taskService.getTasks(boardId);
+      const milestoneParam = kanbanSelectedMilestoneId !== 'all' ? { milestone_id: kanbanSelectedMilestoneId } : undefined;
+      const tasksData = await taskService.getTasks(boardId, milestoneParam);
       setTasks(tasksData);
     } catch (error) {
       console.error('Failed to reorder task:', error);
@@ -709,7 +909,7 @@ export function KanbanBoardPage() {
     }
   };
 
-  // 필터링
+  // 필터링 (마일스톤 필터는 API에서 처리되므로 여기서는 키워드, 멤버, 태그 필터만 적용)
   const filteredFeatures = useMemo(() => {
     return features.filter((feature) => {
       if (filterOptions.keyword && !feature.title.toLowerCase().includes(filterOptions.keyword.toLowerCase())) {
@@ -725,6 +925,12 @@ export function KanbanBoardPage() {
     });
   }, [features, filterOptions]);
 
+  // Feature가 속한 마일스톤 찾기
+  const getFeatureMilestone = (featureId: string): Milestone | undefined => {
+    return milestones.find((m) => m.features?.some((f) => f.id === featureId));
+  };
+
+  // 마일스톤 필터는 API에서 처리되므로 여기서는 키워드, 멤버, 피쳐, 태그, 상태 필터만 적용
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
       if (filterOptions.keyword && !task.title.toLowerCase().includes(filterOptions.keyword.toLowerCase())) {
@@ -751,22 +957,27 @@ export function KanbanBoardPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#1d2125] flex items-center justify-center">
-        <div className="text-white text-lg">로딩 중...</div>
+      <div className="min-h-screen bg-bridge-dark flex items-center justify-center">
+        <div className="text-white text-lg font-light">로딩 중...</div>
       </div>
     );
   }
 
   return (
     <DragProvider>
-      <div className="min-h-screen bg-[#1d2125] flex flex-col">
+      <div className="min-h-screen bg-bridge-dark flex flex-col">
         <TrialBanner
-          status="trial"
-          daysRemaining={5}
+          status={subscription?.status || 'TRIAL'}
+          daysRemaining={
+            subscription?.trial_ends_at
+              ? Math.max(0, Math.ceil((new Date(subscription.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+              : 0
+          }
+          tier={tierInfo?.tier}
           onOpenSubscription={() => setIsSubscriptionModalOpen(true)}
         />
 
-        <header className="bg-[#282e33] border-b border-gray-800">
+        <header className="bg-bridge-obsidian border-b border-white/5 glass">
           <div className="px-6 py-4">
             <div className="flex items-center justify-between max-w-full">
               <div className="flex items-center gap-3">
@@ -774,51 +985,129 @@ export function KanbanBoardPage() {
                   variant="ghost"
                   size="sm"
                   onClick={() => navigate('/boards')}
-                  className="text-gray-300 hover:text-white hover:bg-[#3a4149]"
+                  className="text-slate-400 hover:text-white hover:bg-white/5"
                 >
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   보드
                 </Button>
-                <div className="h-6 w-px bg-gray-700" />
-                <h1 className="text-xl font-bold text-white">
+                <div className="h-6 w-px bg-white/10" />
+                <h1 className="text-xl font-serif font-bold text-white tracking-tight">
                   {board?.name || '팀 칸반보드'}
                 </h1>
-                <div className="h-6 w-px bg-gray-700" />
+                <div className="h-6 w-px bg-white/10" />
+                {/* 마일스톤 셀렉터 */}
+                <div className="flex items-center gap-2">
+                  <Flag className="h-4 w-4 text-bridge-secondary" />
+                  {milestones.length > 0 ? (
+                    <Select value={kanbanSelectedMilestoneId} onValueChange={handleKanbanMilestoneSelect}>
+                      <SelectTrigger className="w-[160px] h-8 bg-white/5 border-white/10 text-white text-sm rounded-lg">
+                        <SelectValue placeholder="마일스톤 선택" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-bridge-obsidian border-white/10">
+                        <SelectItem value="all" className="text-white hover:bg-white/10">
+                          전체
+                        </SelectItem>
+                        {milestones.map((milestone) => (
+                          <SelectItem
+                            key={milestone.id}
+                            value={milestone.id}
+                            className="text-white hover:bg-white/10"
+                          >
+                            {milestone.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <span className="text-sm text-slate-500">마일스톤 없음</span>
+                  )}
+                  {kanbanSelectedMilestoneId !== 'all' && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const milestone = milestones.find((m) => m.id === kanbanSelectedMilestoneId);
+                        if (milestone) handleOpenMilestoneWithCheck(milestone);
+                      }}
+                      className="h-8 w-8 p-0 text-slate-400 hover:text-white hover:bg-white/5"
+                      title="마일스톤 수정"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleOpenMilestoneWithCheck()}
+                    className={`h-8 px-2 ${
+                      !canAccessMilestone
+                        ? 'text-slate-500 hover:text-slate-400 hover:bg-white/5'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    + 추가
+                    {!canAccessMilestone && <Lock className="h-3 w-3 ml-1" />}
+                  </Button>
+                </div>
+                <div className="h-6 w-px bg-white/10" />
                 {/* 뷰 모드 전환 탭 */}
-                <div className="flex items-center bg-[#1d2125] rounded-lg p-1">
+                <div className="flex items-center bg-bridge-dark rounded-xl p-1 border border-white/10">
                   <button
-                    onClick={() => setViewMode('kanban')}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    onClick={() => handleViewModeChange('kanban')}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                       viewMode === 'kanban'
-                        ? 'bg-blue-600 text-white'
-                        : 'text-gray-400 hover:text-white hover:bg-[#3a4149]'
+                        ? 'bg-bridge-accent text-white shadow-lg'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
                     }`}
                   >
                     <LayoutGrid className="h-4 w-4" />
                     칸반보드
                   </button>
                   <button
-                    onClick={() => setViewMode('weekly')}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    onClick={() => handleViewModeChange('weekly')}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                       viewMode === 'weekly'
-                        ? 'bg-blue-600 text-white'
-                        : 'text-gray-400 hover:text-white hover:bg-[#3a4149]'
+                        ? 'bg-bridge-accent text-white shadow-lg'
+                        : !canAccessSchedule
+                          ? 'text-slate-500 hover:text-slate-400 hover:bg-white/5'
+                          : 'text-slate-400 hover:text-white hover:bg-white/5'
                     }`}
                   >
                     <CalendarDays className="h-4 w-4" />
-                    위클리스케줄
+                    간트차트
+                    {!canAccessSchedule && <Lock className="h-3 w-3 ml-1" />}
                   </button>
                   <button
-                    onClick={() => setViewMode('schedule')}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    onClick={() => handleViewModeChange('schedule')}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                       viewMode === 'schedule'
-                        ? 'bg-blue-600 text-white'
-                        : 'text-gray-400 hover:text-white hover:bg-[#3a4149]'
+                        ? 'bg-bridge-accent text-white shadow-lg'
+                        : !canAccessSchedule
+                          ? 'text-slate-500 hover:text-slate-400 hover:bg-white/5'
+                          : 'text-slate-400 hover:text-white hover:bg-white/5'
                     }`}
                   >
                     <Calendar className="h-4 w-4" />
                     데일리스케줄
+                    {!canAccessSchedule && <Lock className="h-3 w-3 ml-1" />}
                   </button>
+                  {/* 통계 탭 - Admin 이상만 표시 */}
+                  {isAdminOrOwner && (
+                    <button
+                      onClick={() => handleViewModeChange('statistics')}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                        viewMode === 'statistics'
+                          ? 'bg-bridge-accent text-white shadow-lg'
+                          : !canAccessStatistics
+                            ? 'text-slate-500 hover:text-slate-400 hover:bg-white/5'
+                            : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                      통계
+                      {!canAccessStatistics && <Lock className="h-3 w-3 ml-1" />}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -827,7 +1116,7 @@ export function KanbanBoardPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setIsActivityLogModalOpen(true)}
-                  className="border-gray-600 text-gray-300 hover:bg-[#3a4149] hover:text-white"
+                  className="border-white/10 text-slate-400 hover:bg-white/5 hover:text-white hover:border-bridge-accent/50"
                 >
                   <Bell className="h-4 w-4" />
                 </Button>
@@ -835,7 +1124,7 @@ export function KanbanBoardPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setIsFilterModalOpen(true)}
-                  className="border-gray-600 text-gray-300 hover:bg-[#3a4149] hover:text-white"
+                  className="border-white/10 text-slate-400 hover:bg-white/5 hover:text-white hover:border-bridge-accent/50"
                 >
                   <Filter className="h-4 w-4 mr-2" />
                   필터
@@ -844,7 +1133,7 @@ export function KanbanBoardPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setIsShareBoardModalOpen(true)}
-                  className="border-gray-600 text-gray-300 hover:bg-[#3a4149] hover:text-white"
+                  className="border-white/10 text-slate-400 hover:bg-white/5 hover:text-white hover:border-bridge-accent/50"
                 >
                   <Users className="h-4 w-4 mr-2" />
                   팀원
@@ -852,7 +1141,7 @@ export function KanbanBoardPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="border-gray-600 text-gray-300 hover:bg-[#3a4149] hover:text-white"
+                  className="border-white/10 text-slate-400 hover:bg-white/5 hover:text-white hover:border-bridge-accent/50"
                 >
                   <Settings className="h-4 w-4 mr-2" />
                   설정
@@ -905,22 +1194,40 @@ export function KanbanBoardPage() {
                   console.error('Failed to update task dates:', error);
                 }
               }}
-              onCreateMilestone={() => handleOpenMilestoneModal()}
-              onEditMilestone={(milestone) => handleOpenMilestoneModal(milestone)}
-              initialSelectedMilestoneId={board?.selected_milestone_id}
-              onMilestoneChange={async (milestoneId) => {
-                try {
-                  await boardService.updateSelectedMilestone(boardId || '', milestoneId);
-                  setBoard((prev) => prev ? { ...prev, selected_milestone_id: milestoneId } : prev);
-                } catch (error) {
-                  console.error('Failed to save selected milestone:', error);
-                }
-              }}
+              selectedMilestoneId={kanbanSelectedMilestoneId}
             />
           </main>
         ) : viewMode === 'kanban' ? (
-          <main className="p-6 overflow-x-auto">
-            <div className="flex gap-4 min-w-max">
+          <main className="flex-1 flex flex-col overflow-hidden">
+            {/* Task 카운터 (Standard 보드) */}
+            {isStandardTier && boardLimits && (
+              <div className="px-6 py-2 bg-bridge-obsidian border-b border-white/5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400">
+                      Task: <span className={`font-medium ${boardLimits.current_task_count >= (boardLimits.task_limit || 10) ? 'text-red-400' : 'text-white'}`}>
+                        {boardLimits.current_task_count}
+                      </span>
+                      <span className="text-slate-500">/{boardLimits.task_limit || 10}</span>
+                    </span>
+                    {!boardLimits.can_create_task && (
+                      <span className="text-xs text-red-400">(한도 도달)</span>
+                    )}
+                  </div>
+                  {!boardLimits.can_create_task && (
+                    <button
+                      onClick={() => openUpgradeModal('task_limit')}
+                      className="text-xs text-bridge-accent hover:text-bridge-accent/80 font-medium transition-colors"
+                    >
+                      Premium으로 업그레이드
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+            {/* 칸반 보드 */}
+            <div className="flex-1 p-6 overflow-x-auto">
+              <div className="flex gap-4 min-w-max">
               {sortedBlocks.map((block, index) => {
               const customBlocks = sortedBlocks.filter((b) => b.type === 'CUSTOM');
               const customBlockIndex = customBlocks.findIndex((b) => b.id === block.id);
@@ -928,8 +1235,8 @@ export function KanbanBoardPage() {
               return (
                 <div key={block.id} className="flex items-start gap-4">
                   {block.fixed_type === 'FEATURE' ? (
-                    <div className="flex flex-col bg-[#282e33] rounded-lg min-w-[280px] max-w-[280px]">
-                      <div className="flex items-center justify-between p-4 border-b border-gray-700">
+                    <div className="flex flex-col bg-bridge-obsidian rounded-2xl min-w-[280px] max-w-[280px] border border-white/5">
+                      <div className="flex items-center justify-between p-4 border-b border-white/5">
                         <div className="flex items-center gap-2">
                           <h3 className="font-semibold text-white">{block.name}</h3>
                           <span className="text-sm text-gray-400">{filteredFeatures.length}</span>
@@ -943,13 +1250,14 @@ export function KanbanBoardPage() {
                             onClick={() => handleFeatureClick(feature)}
                             availableTags={tags}
                             tasks={filteredTasks.filter((task) => task.feature_id === feature.id)}
+                            milestone={getFeatureMilestone(feature.id)}
                           />
                         ))}
                       </div>
                       <div className="p-2">
                         <Button
                           variant="ghost"
-                          className="w-full justify-start text-gray-400 hover:text-white hover:bg-[#3a4149]"
+                          className="w-full justify-start text-slate-400 hover:text-white hover:bg-white/5"
                           onClick={() => setIsAddFeatureModalOpen(true)}
                         >
                           <Plus className="h-4 w-4 mr-2" />
@@ -994,7 +1302,7 @@ export function KanbanBoardPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-10 px-3 mt-4 border-gray-600 text-gray-400 hover:bg-[#3a4149] hover:text-white"
+                      className="h-10 px-3 mt-4 border-white/10 text-slate-400 hover:bg-white/5 hover:text-white hover:border-bridge-accent/50"
                       onClick={() => setIsAddBlockModalOpen(true)}
                     >
                       <Plus className="h-4 w-4" />
@@ -1003,9 +1311,10 @@ export function KanbanBoardPage() {
                 </div>
               );
             })}
+              </div>
             </div>
           </main>
-        ) : (
+        ) : viewMode === 'schedule' ? (
           <main className="flex-1 overflow-hidden">
             <DailyScheduleView
               boardId={boardId || ''}
@@ -1021,7 +1330,26 @@ export function KanbanBoardPage() {
               refreshTrigger={scheduleRefreshKey}
             />
           </main>
-        )}
+        ) : viewMode === 'statistics' ? (
+          <main className="flex-1 overflow-hidden">
+            <StatisticsView
+              boardId={boardId || ''}
+              milestones={milestones}
+              tags={tags}
+              members={boardMembersData.map(m => ({
+                id: m.id,
+                user: {
+                  id: m.userId,
+                  name: m.name,
+                  email: m.email,
+                  profile_image: null,
+                },
+                role: m.role === 'observer' ? 'VIEWER' : m.role.toUpperCase() as any,
+                joined_at: '',
+              }))}
+            />
+          </main>
+        ) : null}
 
         {/* 모달들 */}
         <FeatureDetailModal
@@ -1035,7 +1363,6 @@ export function KanbanBoardPage() {
           onDelete={handleDeleteFeature}
           availableTags={tags}
           onCreateTag={handleCreateTag}
-          availableMembers={availableMembers}
         />
 
         <TaskDetailModal
@@ -1112,9 +1439,17 @@ export function KanbanBoardPage() {
             setSelectedMilestone(null);
           }}
           milestone={selectedMilestone}
-          features={features}
+          features={allFeatures}
           onSave={handleSaveMilestone}
           onDelete={handleDeleteMilestone}
+        />
+
+        <UpgradeModal
+          open={isUpgradeModalOpen}
+          onClose={() => setIsUpgradeModalOpen(false)}
+          trigger={upgradeTrigger}
+          seatCount={subscription?.billable_member_count || boardMembersData.filter(m => m.role !== 'observer').length || 1}
+          onUpgrade={handleSeatUpgrade}
         />
       </div>
     </DragProvider>

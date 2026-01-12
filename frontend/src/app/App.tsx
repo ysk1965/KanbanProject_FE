@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LoginPage } from './components/LoginPage';
 import { BoardListPage } from './components/BoardListPage';
 import { InviteLandingPage } from './components/InviteLandingPage';
+import { LandingPage } from './components/landing/LandingPage';
 import { KanbanBoardPage } from './pages/KanbanBoardPage';
 import { boardService, inviteLinkService } from './utils/services';
 import { useState, useEffect } from 'react';
@@ -247,8 +248,8 @@ function InviteRoute() {
 function AppRoutes() {
   return (
     <Routes>
-      {/* 루트 경로 - 로그인 여부에 따라 리디렉션 */}
-      <Route path="/" element={<Navigate to="/boards" replace />} />
+      {/* 랜딩 페이지 */}
+      <Route path="/" element={<LandingPage />} />
 
       {/* 로그인 */}
       <Route path="/login" element={<LoginRoute />} />
@@ -277,7 +278,7 @@ function AppRoutes() {
       <Route path="/invite/:code" element={<InviteRoute />} />
 
       {/* 404 - 존재하지 않는 경로 */}
-      <Route path="*" element={<Navigate to="/boards" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

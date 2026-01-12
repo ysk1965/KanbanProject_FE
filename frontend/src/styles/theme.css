@@ -1,6 +1,11 @@
 @custom-variant dark (&:is(.dark *));
 
+/* Bridge Theme Colors */
 :root {
+  --bridge-dark: #0A0E17;
+  --bridge-obsidian: #0F1419;
+  --bridge-accent: #6366F1;
+  --bridge-secondary: #2DD4BF;
   --font-size: 16px;
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
@@ -178,4 +183,64 @@
     font-weight: var(--font-weight-normal);
     line-height: 1.5;
   }
+}
+
+/* Bridge Theme Utilities */
+@theme inline {
+  --color-bridge-dark: var(--bridge-dark);
+  --color-bridge-obsidian: var(--bridge-obsidian);
+  --color-bridge-accent: var(--bridge-accent);
+  --color-bridge-secondary: var(--bridge-secondary);
+}
+
+/* Glass morphism effect */
+.glass {
+  background: rgba(15, 20, 25, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Text shimmer effect */
+.text-shimmer {
+  background: linear-gradient(
+    90deg,
+    #fff 0%,
+    #a5b4fc 25%,
+    #fff 50%,
+    #2dd4bf 75%,
+    #fff 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 4s linear infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: 200% center;
+  }
+}
+
+/* Fade in up animation */
+.animate-fade-in-up {
+  animation: fadeInUp 0.8s ease-out forwards;
+  opacity: 0;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
 }

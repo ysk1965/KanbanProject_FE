@@ -20,6 +20,35 @@ const getRefreshToken = (): string | null => {
   return localStorage.getItem('refresh_token');
 };
 
+// JWT 토큰 디코딩 (만료 시간 확인용)
+const decodeToken = (token: string): { exp: number } | null => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
+};
+
+// 토큰이 곧 만료되는지 확인 (10분 이내)
+const isTokenExpiringSoon = (token: string): boolean => {
+  const decoded = decodeToken(token);
+  if (!decoded) return true;
+
+  const now = Math.floor(Date.now() / 1000);
+  const timeUntilExpiry = decoded.exp - now;
+  const TEN_MINUTES = 10 * 60;
+
+  return timeUntilExpiry < TEN_MINUTES;
+};
+
 // API 에러 타입
 export interface ApiError {
   code: string;
@@ -47,9 +76,20 @@ class ApiClient {
       ...options?.headers as Record<string, string>,
     };
 
-    // 인증 토큰 추가
+    // 인증 토큰 추가 (선제적 갱신 포함)
     if (!skipAuth) {
-      const token = getAccessToken();
+      let token = getAccessToken();
+
+      // 토큰이 10분 이내 만료 예정이면 선제적으로 갱신
+      if (token && isTokenExpiringSoon(token)) {
+        console.log('🔄 [Token] 토큰 만료 임박, 선제적 갱신 시도...');
+        const refreshed = await this.tryRefreshToken();
+        if (refreshed) {
+          token = getAccessToken();
+          console.log('✅ [Token] 선제적 갱신 완료');
+        }
+      }
+
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
@@ -132,7 +172,10 @@ class ApiClient {
 
   private async tryRefreshToken(): Promise<boolean> {
     const refreshToken = getRefreshToken();
-    if (!refreshToken) return false;
+    if (!refreshToken) {
+      this.redirectToLogin();
+      return false;
+    }
 
     try {
       const response = await fetch(`${this.baseURL}/auth/refresh`, {
@@ -150,8 +193,19 @@ class ApiClient {
       // 갱신 실패
     }
 
+    // 세션 만료 - 로그인 페이지로 리다이렉트
+    console.log('🔒 [Auth] 세션 만료, 로그인 페이지로 이동');
     clearTokens();
+    this.redirectToLogin();
     return false;
+  }
+
+  private redirectToLogin(): void {
+    // 이미 로그인 페이지면 리다이렉트 안함
+    if (window.location.pathname === '/login' || window.location.pathname === '/signup') {
+      return;
+    }
+    window.location.href = '/login';
   }
 
   async get<T>(endpoint: string, skipAuth: boolean = false): Promise<T> {
@@ -466,6 +520,35 @@ export interface PricingResponse {
   trial_days: string;
 }
 
+// Board Tier Response Types
+export type BoardTier = 'TRIAL' | 'STANDARD' | 'PREMIUM';
+
+export interface BoardTierResponse {
+  tier: BoardTier;
+  trial_ends_at: string | null;
+  can_access_schedule: boolean;
+  can_access_milestone: boolean;
+}
+
+export interface BoardLimitsResponse {
+  task_limit: number | null;
+  current_task_count: number;
+  can_create_task: boolean;
+}
+
+// Seat Pricing Response
+export interface SeatPricingResponse {
+  price_per_seat: {
+    monthly: number;
+    yearly: number;
+  };
+  seat_count: number;
+  estimated_price: {
+    monthly: number;
+    yearly: number;
+  };
+}
+
 // ========================================
 // Auth API
 // ========================================
@@ -545,6 +628,14 @@ export const boardAPI = {
       milestone_id: milestoneId,
     });
   },
+
+  getBoardTier: async (boardId: string) => {
+    return apiClient.get<BoardTierResponse>(`/boards/${boardId}/tier`);
+  },
+
+  getBoardLimits: async (boardId: string) => {
+    return apiClient.get<BoardLimitsResponse>(`/boards/${boardId}/limits`);
+  },
 };
 
 // ========================================
@@ -580,8 +671,9 @@ export const blockAPI = {
 // ========================================
 
 export const featureAPI = {
-  getFeatures: async (boardId: string) => {
-    return apiClient.get<{ features: FeatureResponse[] }>(`/boards/${boardId}/features`);
+  getFeatures: async (boardId: string, milestoneId?: string) => {
+    const query = milestoneId ? `?milestoneId=${milestoneId}` : '';
+    return apiClient.get<{ features: FeatureResponse[] }>(`/boards/${boardId}/features${query}`);
   },
 
   getFeature: async (boardId: string, featureId: string) => {
@@ -646,10 +738,11 @@ export const featureAPI = {
 // ========================================
 
 export const taskAPI = {
-  getTasks: async (boardId: string, params?: { block_id?: string; feature_id?: string }) => {
+  getTasks: async (boardId: string, params?: { block_id?: string; feature_id?: string; milestone_id?: string }) => {
     const query = new URLSearchParams();
-    if (params?.block_id) query.set('block_id', params.block_id);
-    if (params?.feature_id) query.set('feature_id', params.feature_id);
+    if (params?.block_id) query.set('blockId', params.block_id);
+    if (params?.feature_id) query.set('featureId', params.feature_id);
+    if (params?.milestone_id) query.set('milestoneId', params.milestone_id);
     const queryString = query.toString();
     return apiClient.get<{ tasks: TaskResponse[] }>(
       `/boards/${boardId}/tasks${queryString ? `?${queryString}` : ''}`
@@ -888,6 +981,22 @@ export const subscriptionAPI = {
     data: { plan_id: string; billing_cycle: 'MONTHLY' | 'YEARLY'; payment_method_id: string }
   ) => {
     return apiClient.post<SubscriptionResponse>(`/boards/${boardId}/subscription/start`, data);
+  },
+
+  // Seat 기반 구독 시작
+  startSeatSubscription: async (
+    boardId: string,
+    data: { billing_cycle: 'MONTHLY' | 'YEARLY'; payment_method_id: string }
+  ) => {
+    return apiClient.post<SubscriptionResponse>(`/boards/${boardId}/subscription/start`, {
+      ...data,
+      plan_id: 'PREMIUM', // Seat 기반은 단일 플랜
+    });
+  },
+
+  // Seat 가격 조회
+  getSeatPricing: async (boardId: string) => {
+    return apiClient.get<SeatPricingResponse>(`/boards/${boardId}/subscription/pricing`);
   },
 
   changePlan: async (
@@ -1212,5 +1321,251 @@ export interface TestDataResponse {
 export const testDataAPI = {
   createTestBoard: async () => {
     return apiClient.post<TestDataResponse>('/test/create-board');
+  },
+};
+
+// ========================================
+// Statistics API (Analytics & Productivity)
+// ========================================
+
+// 통계 응답 타입들
+export interface StatisticsSummaryResponse {
+  total_work_minutes: number;
+  completed_work_minutes: number;
+  incomplete_work_minutes: number;
+  total_tasks: number;
+  completed_tasks: number;
+  incomplete_tasks: number;
+  total_features: number;
+  completed_features: number;
+  average_feature_progress: number;
+  focus_rate: number;
+  period_start: string;
+  period_end: string;
+}
+
+export interface MemberStatisticsResponse {
+  member: {
+    id: string;
+    name: string;
+    profile_image: string | null;
+  };
+  total_minutes: number;
+  completed_minutes: number;
+  task_count: number;
+  completed_task_count: number;
+  impact_score: number;
+  by_feature: {
+    feature_id: string;
+    feature_title: string;
+    feature_color: string;
+    minutes: number;
+  }[];
+}
+
+export interface FeatureStatisticsResponse {
+  feature: {
+    id: string;
+    title: string;
+    color: string;
+  };
+  total_minutes: number;
+  completed_minutes: number;
+  task_count: number;
+  completed_task_count: number;
+  progress_percentage: number;
+  by_member: {
+    member_id: string;
+    member_name: string;
+    minutes: number;
+  }[];
+}
+
+export interface TagStatisticsResponse {
+  tag: {
+    id: string;
+    name: string;
+    color: string;
+  };
+  total_minutes: number;
+  task_count: number;
+}
+
+export interface ImpactStatisticsResponse {
+  total_impact_score: number;
+  by_member: {
+    member_id: string;
+    member_name: string;
+    profile_image: string | null;
+    impact_score: number;
+    weighted_minutes: number;
+  }[];
+  by_weight_level: {
+    level: WeightLevelResponse;
+    total_minutes: number;
+    task_count: number;
+  }[];
+}
+
+export interface DailyTrendResponse {
+  date: string;
+  total_minutes: number;
+  completed_minutes: number;
+  task_completed_count: number;
+}
+
+export interface BoardStatisticsResponse {
+  summary: StatisticsSummaryResponse;
+  by_member: MemberStatisticsResponse[];
+  by_feature: FeatureStatisticsResponse[];
+  by_tag: TagStatisticsResponse[];
+  impact: ImpactStatisticsResponse;
+  daily_trend: DailyTrendResponse[];
+}
+
+export interface PersonalStatisticsResponse {
+  summary: {
+    total_work_minutes: number;
+    completed_work_minutes: number;
+    total_tasks: number;
+    completed_tasks: number;
+    impact_score: number;
+  };
+  by_feature: {
+    feature_id: string;
+    feature_title: string;
+    feature_color: string;
+    minutes: number;
+    task_count: number;
+  }[];
+  by_tag: {
+    tag_id: string;
+    tag_name: string;
+    tag_color: string;
+    minutes: number;
+  }[];
+  top_tasks: {
+    task_id: string;
+    task_title: string;
+    feature_title: string;
+    minutes: number;
+  }[];
+  daily_trend: {
+    date: string;
+    minutes: number;
+  }[];
+}
+
+// 가중치 레벨 타입
+export interface WeightLevelResponse {
+  id: string;
+  name: string;
+  weight: number;
+  color: string;
+  position: number;
+  is_default: boolean;
+}
+
+export interface BoardWeightSettingsResponse {
+  board_id: string;
+  levels: WeightLevelResponse[];
+  default_level_id: string;
+}
+
+export const statisticsAPI = {
+  // 보드 전체 통계 조회
+  getBoardStatistics: async (
+    boardId: string,
+    params?: {
+      start_date?: string;
+      end_date?: string;
+      milestone_ids?: string[];
+      feature_ids?: string[];
+      member_ids?: string[];
+      tag_ids?: string[];
+    }
+  ) => {
+    const query = new URLSearchParams();
+    if (params?.start_date) query.set('start_date', params.start_date);
+    if (params?.end_date) query.set('end_date', params.end_date);
+    if (params?.milestone_ids?.length) {
+      params.milestone_ids.forEach(id => query.append('milestone_ids', id));
+    }
+    if (params?.feature_ids?.length) {
+      params.feature_ids.forEach(id => query.append('feature_ids', id));
+    }
+    if (params?.member_ids?.length) {
+      params.member_ids.forEach(id => query.append('member_ids', id));
+    }
+    if (params?.tag_ids?.length) {
+      params.tag_ids.forEach(id => query.append('tag_ids', id));
+    }
+    const queryString = query.toString();
+    return apiClient.get<BoardStatisticsResponse>(
+      `/boards/${boardId}/statistics${queryString ? `?${queryString}` : ''}`
+    );
+  },
+
+  // 개인 통계 조회 (본인 데이터만)
+  getPersonalStatistics: async (
+    boardId: string,
+    params?: {
+      start_date?: string;
+      end_date?: string;
+    }
+  ) => {
+    const query = new URLSearchParams();
+    if (params?.start_date) query.set('start_date', params.start_date);
+    if (params?.end_date) query.set('end_date', params.end_date);
+    const queryString = query.toString();
+    return apiClient.get<PersonalStatisticsResponse>(
+      `/boards/${boardId}/statistics/personal${queryString ? `?${queryString}` : ''}`
+    );
+  },
+
+  // 가중치 레벨 설정 조회
+  getWeightLevels: async (boardId: string) => {
+    return apiClient.get<BoardWeightSettingsResponse>(
+      `/boards/${boardId}/weight-levels`
+    );
+  },
+
+  // 가중치 레벨 설정 생성/수정
+  updateWeightLevels: async (
+    boardId: string,
+    data: {
+      levels: {
+        id?: string;
+        name: string;
+        weight: number;
+        color: string;
+        position: number;
+      }[];
+      default_level_id?: string;
+    }
+  ) => {
+    return apiClient.put<BoardWeightSettingsResponse>(
+      `/boards/${boardId}/weight-levels`,
+      data
+    );
+  },
+
+  // Task 가중치 설정
+  setTaskWeight: async (
+    boardId: string,
+    taskId: string,
+    weightLevelId: string
+  ) => {
+    return apiClient.patch<{ task_id: string; weight_level_id: string }>(
+      `/boards/${boardId}/tasks/${taskId}/weight`,
+      { weight_level_id: weightLevelId }
+    );
+  },
+
+  // Task 가중치 조회
+  getTaskWeight: async (boardId: string, taskId: string) => {
+    return apiClient.get<{ task_id: string; weight_level: WeightLevelResponse | null }>(
+      `/boards/${boardId}/tasks/${taskId}/weight`
+    );
   },
 };

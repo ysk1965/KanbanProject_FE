@@ -43,7 +43,6 @@ interface FeatureDetailModalProps {
   onDelete: (featureId: string) => void;
   availableTags: Tag[];
   onCreateTag: (name: string, color: string) => void;
-  availableMembers: string[];
 }
 
 export function FeatureDetailModal({
@@ -57,7 +56,6 @@ export function FeatureDetailModal({
   onDelete,
   availableTags,
   onCreateTag,
-  availableMembers,
 }: FeatureDetailModalProps) {
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [showTagInput, setShowTagInput] = useState(false);
@@ -249,23 +247,6 @@ export function FeatureDetailModal({
               </div>
             </div>
 
-            {/* 담당자 */}
-            <div className="space-y-2">
-              <Label>담당자</Label>
-              <div className="flex items-center gap-2">
-                {editedFeature.assignee ? (
-                  <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg">
-                    <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-xs text-white">
-                      {editedFeature.assignee.name.charAt(0).toUpperCase()}
-                    </div>
-                    <span className="text-sm">{editedFeature.assignee.name}</span>
-                  </div>
-                ) : (
-                  <span className="text-sm text-gray-500">담당자 없음</span>
-                )}
-              </div>
-            </div>
-
             {/* 색상 선택 */}
             <div className="space-y-2">
               <Label>Feature 색상</Label>
@@ -412,11 +393,6 @@ export function FeatureDetailModal({
                     >
                       {task.title}
                     </p>
-                    {task.assignee && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        @{task.assignee.name}
-                      </p>
-                    )}
                   </div>
                   <div className="flex items-center gap-1 text-xs text-gray-500">
                     <ArrowRight className="h-3 w-3" />

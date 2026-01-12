@@ -1,6 +1,6 @@
-import { Feature, Task } from '../types';
+import { Feature, Task, Milestone } from '../types';
 import { Progress } from './ui/progress';
-import { Calendar, AlertCircle, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
+import { Calendar, AlertCircle, ChevronDown, ChevronUp, CheckCircle2, Flag } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { useState } from 'react';
 
@@ -9,6 +9,7 @@ interface FeatureCardProps {
   onClick?: () => void;
   availableTags?: Array<{ id: string; name: string; color: string }>;
   tasks?: Task[]; // 서브태스크 목록
+  milestone?: Milestone; // 연결된 마일스톤
 }
 
 const priorityColors: Record<string, string> = {
@@ -23,7 +24,7 @@ const priorityLabels: Record<string, string> = {
   LOW: '낮음',
 };
 
-export function FeatureCard({ feature, onClick, availableTags = [], tasks = [] }: FeatureCardProps) {
+export function FeatureCard({ feature, onClick, availableTags = [], tasks = [], milestone }: FeatureCardProps) {
   const progressPercent = feature.progress_percentage;
   const isCompleted = progressPercent === 100 && feature.total_tasks > 0;
 
@@ -50,7 +51,7 @@ export function FeatureCard({ feature, onClick, availableTags = [], tasks = [] }
     >
       {/* 제목 */}
       <div className="flex items-start gap-2 mb-3">
-        <div 
+        <div
           className="w-2 h-2 rounded-full mt-2 flex-shrink-0"
           style={{ backgroundColor: featureColor }}
         />
@@ -58,6 +59,16 @@ export function FeatureCard({ feature, onClick, availableTags = [], tasks = [] }
           {feature.title}
         </h4>
       </div>
+
+      {/* 마일스톤 뱃지 */}
+      {milestone && (
+        <div className="mb-3">
+          <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-700 border border-purple-200">
+            <Flag className="h-3 w-3" />
+            {milestone.title}
+          </span>
+        </div>
+      )}
 
       {/* 태그 표시 */}
       {featureTags.length > 0 && (
@@ -110,16 +121,6 @@ export function FeatureCard({ feature, onClick, availableTags = [], tasks = [] }
           </span>
         )}
       </div>
-
-      {/* 담당자 */}
-      {feature.assignee && (
-        <div className="mt-3 flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center text-xs text-white">
-            {feature.assignee.name.charAt(0).toUpperCase()}
-          </div>
-          <span className="text-xs text-gray-600">{feature.assignee.name}</span>
-        </div>
-      )}
 
       {/* 서브태스크 목록 */}
       {tasks.length > 0 && (

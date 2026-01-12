@@ -1,47 +1,45 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { ChevronDown, ChevronRight as ChevronRightIcon, FileText, Calendar, Settings, Pencil} from 'lucide-react';
+import { ChevronDown, ChevronRight as ChevronRightIcon, FileText, Calendar } from 'lucide-react';
 import { Button } from './ui/button';
 import {
   format,
   addDays,
   subDays,
   eachDayOfInterval,
+  eachWeekOfInterval,
   isToday,
   isSameDay,
   differenceInDays,
+  differenceInWeeks,
   parseISO,
   isBefore,
   isAfter,
   getDay,
   startOfDay,
+  startOfWeek,
+  endOfWeek,
+  isWithinInterval,
 } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { Feature, Task, Milestone } from '../types';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from './ui/select';
-import { Flag } from 'lucide-react';
+
+type ScheduleViewMode = 'day' | 'week';
 
 interface WeeklyScheduleViewProps {
   boardId: string;
   features: Feature[];
   tasks: Task[];
   milestones?: Milestone[];
-  initialSelectedMilestoneId?: string | null;
+  selectedMilestoneId?: string; // 상위에서 선택된 마일스톤
   onViewFeature?: (featureId: string) => void;
   onViewTask?: (taskId: string) => void;
   onUpdateTaskDates?: (taskId: string, startDate: string, endDate: string) => void;
-  onCreateMilestone?: () => void;
-  onEditMilestone?: (milestone: Milestone) => void;
-  onMilestoneChange?: (milestoneId: string | null) => void;
 }
 
 // 각 날짜 열의 픽셀 너비
 const DAY_WIDTH = 60;
+// 각 주 열의 픽셀 너비 (주 단위 뷰에서 사용)
+const WEEK_WIDTH = 80;
 // 왼쪽 Feature/Task 열 너비
 const LEFT_COLUMN_WIDTH = 280;
 
@@ -95,52 +93,32 @@ export function WeeklyScheduleView({
   features,
   tasks,
   milestones = [],
-  initialSelectedMilestoneId,
+  selectedMilestoneId = 'all',
   onViewFeature,
   onViewTask,
   onUpdateTaskDates,
-  onCreateMilestone,
-  onEditMilestone,
-  onMilestoneChange,
 }: WeeklyScheduleViewProps) {
+  // 일/주 보기 모드
+  const [viewMode, setViewMode] = useState<ScheduleViewMode>('day');
+
   // 시작/종료 날짜 (기본값: 오늘 기준 7일 전 ~ 30일 후)
   const [rangeStartDate, setRangeStartDate] = useState(() => subDays(new Date(), 7));
   const [rangeEndDate, setRangeEndDate] = useState(() => addDays(new Date(), 23));
 
-  // 선택된 마일스톤
-  const [selectedMilestoneId, setSelectedMilestoneId] = useState<string>('all');
-
-  // 초기 선택된 마일스톤 로드
+  // 선택된 마일스톤에 따라 날짜 범위 업데이트
   useEffect(() => {
-    if (initialSelectedMilestoneId && milestones.length > 0) {
-      const milestone = milestones.find((m) => m.id === initialSelectedMilestoneId);
+    if (selectedMilestoneId && selectedMilestoneId !== 'all' && milestones.length > 0) {
+      const milestone = milestones.find((m) => m.id === selectedMilestoneId);
       if (milestone) {
-        setSelectedMilestoneId(initialSelectedMilestoneId);
         setRangeStartDate(parseLocalDate(milestone.start_date));
         setRangeEndDate(parseLocalDate(milestone.end_date));
       }
-    }
-  }, [initialSelectedMilestoneId, milestones]);
-
-  // 마일스톤 선택 핸들러
-  const handleMilestoneSelect = (milestoneId: string) => {
-    setSelectedMilestoneId(milestoneId);
-    if (milestoneId === 'all') {
+    } else if (selectedMilestoneId === 'all') {
       // "전체" 선택 시 기본 날짜 범위로
       setRangeStartDate(subDays(new Date(), 7));
       setRangeEndDate(addDays(new Date(), 23));
-      // 서버에 저장 (null로)
-      onMilestoneChange?.(null);
-    } else {
-      const milestone = milestones.find((m) => m.id === milestoneId);
-      if (milestone) {
-        setRangeStartDate(parseLocalDate(milestone.start_date));
-        setRangeEndDate(parseLocalDate(milestone.end_date));
-      }
-      // 서버에 저장
-      onMilestoneChange?.(milestoneId);
     }
-  };
+  }, [selectedMilestoneId, milestones]);
 
   // Feature 접기/펼치기 상태
   const [collapsedFeatures, setCollapsedFeatures] = useState<Set<string>>(new Set());
@@ -180,8 +158,28 @@ export function WeeklyScheduleView({
     return eachDayOfInterval({ start: rangeStartDate, end: rangeEndDate });
   }, [rangeStartDate, rangeEndDate]);
 
+  // 주 단위 데이터 (주의 시작일 배열)
+  const weeks = useMemo(() => {
+    if (isBefore(rangeEndDate, rangeStartDate)) return [];
+    const weekStarts = eachWeekOfInterval(
+      { start: rangeStartDate, end: rangeEndDate },
+      { weekStartsOn: 1 }
+    );
+    return weekStarts.map((weekStart) => {
+      const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
+      return {
+        start: weekStart,
+        end: isAfter(weekEnd, rangeEndDate) ? rangeEndDate : weekEnd,
+      };
+    });
+  }, [rangeStartDate, rangeEndDate]);
+
   // 총 일수
   const totalDays = days.length;
+
+  // 현재 뷰에 따른 열 너비와 총 너비
+  const columnWidth = viewMode === 'day' ? DAY_WIDTH : WEEK_WIDTH;
+  const totalColumns = viewMode === 'day' ? totalDays : weeks.length;
 
   // 오늘 버튼 클릭 - 오늘이 보이도록 스크롤
   const handleGoToToday = () => {
@@ -189,8 +187,18 @@ export function WeeklyScheduleView({
     // 오늘이 범위 내에 있으면 스크롤만
     if (!isBefore(today, rangeStartDate) && !isAfter(today, rangeEndDate)) {
       if (scrollContainerRef.current) {
-        const todayOffset = differenceInDays(today, rangeStartDate) * DAY_WIDTH;
-        scrollContainerRef.current.scrollLeft = todayOffset - 100;
+        if (viewMode === 'day') {
+          const todayOffset = differenceInDays(today, rangeStartDate) * DAY_WIDTH;
+          scrollContainerRef.current.scrollLeft = todayOffset - 100;
+        } else {
+          // 주 단위 뷰에서는 오늘이 속한 주를 찾아서 스크롤
+          const weekIndex = weeks.findIndex((week) =>
+            isWithinInterval(today, { start: week.start, end: week.end })
+          );
+          if (weekIndex >= 0) {
+            scrollContainerRef.current.scrollLeft = weekIndex * WEEK_WIDTH - 100;
+          }
+        }
       }
     } else {
       // 범위 밖이면 범위 재설정
@@ -203,10 +211,19 @@ export function WeeklyScheduleView({
   useEffect(() => {
     if (scrollContainerRef.current) {
       const today = new Date();
-      const todayOffset = differenceInDays(today, rangeStartDate) * DAY_WIDTH;
-      scrollContainerRef.current.scrollLeft = Math.max(0, todayOffset - 100);
+      if (viewMode === 'day') {
+        const todayOffset = differenceInDays(today, rangeStartDate) * DAY_WIDTH;
+        scrollContainerRef.current.scrollLeft = Math.max(0, todayOffset - 100);
+      } else {
+        const weekIndex = weeks.findIndex((week) =>
+          isWithinInterval(today, { start: week.start, end: week.end })
+        );
+        if (weekIndex >= 0) {
+          scrollContainerRef.current.scrollLeft = Math.max(0, weekIndex * WEEK_WIDTH - 100);
+        }
+      }
     }
-  }, [rangeStartDate]);
+  }, [rangeStartDate, viewMode, weeks]);
 
   // 헤더와 본문 스크롤 동기화
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -513,13 +530,34 @@ export function WeeklyScheduleView({
     const displayStart = isBefore(effectiveStart, rangeStart) ? rangeStart : effectiveStart;
     const displayEnd = isAfter(effectiveEnd, rangeEnd) ? rangeEnd : effectiveEnd;
 
-    const startOffset = differenceInDays(displayStart, rangeStart);
-    const duration = differenceInDays(displayEnd, displayStart) + 1;
+    if (viewMode === 'day') {
+      const startOffset = differenceInDays(displayStart, rangeStart);
+      const duration = differenceInDays(displayEnd, displayStart) + 1;
+      return {
+        left: startOffset * DAY_WIDTH,
+        width: duration * DAY_WIDTH - 4, // 약간의 여백
+      };
+    } else {
+      // 주 단위 뷰: 시작 주와 끝 주를 찾아서 위치 계산
+      const startWeekIndex = weeks.findIndex((week) =>
+        isWithinInterval(displayStart, { start: week.start, end: week.end }) ||
+        isBefore(displayStart, week.start) && isAfter(displayEnd, week.start)
+      );
+      const endWeekIndex = weeks.findIndex((week) =>
+        isWithinInterval(displayEnd, { start: week.start, end: week.end })
+      );
 
-    return {
-      left: startOffset * DAY_WIDTH,
-      width: duration * DAY_WIDTH - 4, // 약간의 여백
-    };
+      if (startWeekIndex === -1 && endWeekIndex === -1) return null;
+
+      const effectiveStartWeek = startWeekIndex >= 0 ? startWeekIndex : 0;
+      const effectiveEndWeek = endWeekIndex >= 0 ? endWeekIndex : weeks.length - 1;
+      const weekSpan = effectiveEndWeek - effectiveStartWeek + 1;
+
+      return {
+        left: effectiveStartWeek * WEEK_WIDTH,
+        width: weekSpan * WEEK_WIDTH - 4,
+      };
+    }
   };
 
   // Feature 집계 바 위치 계산
@@ -540,13 +578,34 @@ export function WeeklyScheduleView({
     const displayStart = isBefore(effectiveStart, rangeStart) ? rangeStart : effectiveStart;
     const displayEnd = isAfter(effectiveEnd, rangeEnd) ? rangeEnd : effectiveEnd;
 
-    const startOffset = differenceInDays(displayStart, rangeStart);
-    const duration = differenceInDays(displayEnd, displayStart) + 1;
+    if (viewMode === 'day') {
+      const startOffset = differenceInDays(displayStart, rangeStart);
+      const duration = differenceInDays(displayEnd, displayStart) + 1;
+      return {
+        left: startOffset * DAY_WIDTH,
+        width: duration * DAY_WIDTH - 4,
+      };
+    } else {
+      // 주 단위 뷰
+      const startWeekIndex = weeks.findIndex((week) =>
+        isWithinInterval(displayStart, { start: week.start, end: week.end }) ||
+        isBefore(displayStart, week.start) && isAfter(displayEnd, week.start)
+      );
+      const endWeekIndex = weeks.findIndex((week) =>
+        isWithinInterval(displayEnd, { start: week.start, end: week.end })
+      );
 
-    return {
-      left: startOffset * DAY_WIDTH,
-      width: duration * DAY_WIDTH - 4,
-    };
+      if (startWeekIndex === -1 && endWeekIndex === -1) return null;
+
+      const effectiveStartWeek = startWeekIndex >= 0 ? startWeekIndex : 0;
+      const effectiveEndWeek = endWeekIndex >= 0 ? endWeekIndex : weeks.length - 1;
+      const weekSpan = effectiveEndWeek - effectiveStartWeek + 1;
+
+      return {
+        left: effectiveStartWeek * WEEK_WIDTH,
+        width: weekSpan * WEEK_WIDTH - 4,
+      };
+    }
   };
 
   // 오늘 표시선 위치 계산
@@ -559,20 +618,56 @@ export function WeeklyScheduleView({
       return null;
     }
 
-    const offset = differenceInDays(today, rangeStart);
-    return offset * DAY_WIDTH + DAY_WIDTH / 2;
+    if (viewMode === 'day') {
+      const offset = differenceInDays(today, rangeStart);
+      return offset * DAY_WIDTH + DAY_WIDTH / 2;
+    } else {
+      // 주 단위 뷰에서는 오늘이 속한 주의 중앙
+      const weekIndex = weeks.findIndex((week) =>
+        isWithinInterval(today, { start: week.start, end: week.end })
+      );
+      if (weekIndex >= 0) {
+        return weekIndex * WEEK_WIDTH + WEEK_WIDTH / 2;
+      }
+      return null;
+    }
   };
 
   const todayLinePosition = getTodayLinePosition();
 
   // 총 그리드 너비
-  const totalGridWidth = totalDays * DAY_WIDTH;
+  const totalGridWidth = viewMode === 'day' ? totalDays * DAY_WIDTH : weeks.length * WEEK_WIDTH;
 
   return (
     <div className="h-full flex flex-col bg-[#1d2125]">
       {/* 상단 네비게이션 */}
       <div className="flex items-center justify-between px-6 py-3 bg-[#282e33] border-b border-gray-700">
         <div className="flex items-center gap-4">
+          {/* 일/주 토글 */}
+          <div
+            className="flex bg-[#1d2125] rounded-lg p-1 cursor-pointer"
+            onClick={() => setViewMode(viewMode === 'day' ? 'week' : 'day')}
+          >
+            <span
+              className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                viewMode === 'day'
+                  ? 'bg-[#3a4149] text-white'
+                  : 'text-gray-400'
+              }`}
+            >
+              일
+            </span>
+            <span
+              className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                viewMode === 'week'
+                  ? 'bg-[#3a4149] text-white'
+                  : 'text-gray-400'
+              }`}
+            >
+              주
+            </span>
+          </div>
+
           {/* 날짜 범위 선택 */}
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-gray-400" />
@@ -601,7 +696,9 @@ export function WeeklyScheduleView({
             />
           </div>
 
-          <span className="text-sm text-gray-400">({totalDays}일)</span>
+          <span className="text-sm text-gray-400">
+            ({viewMode === 'day' ? `${totalDays}일` : `${weeks.length}주`})
+          </span>
 
           <Button
             variant="outline"
@@ -611,61 +708,6 @@ export function WeeklyScheduleView({
           >
             오늘
           </Button>
-
-          {/* 마일스톤 선택 */}
-          <div className="flex items-center gap-2 ml-4 pl-4 border-l border-gray-600">
-            <Flag className="h-4 w-4 text-gray-400" />
-            {milestones.length > 0 ? (
-              <Select value={selectedMilestoneId} onValueChange={handleMilestoneSelect}>
-                <SelectTrigger className="w-[180px] h-8 bg-[#3a4149] border-gray-600 text-white text-sm">
-                  <SelectValue placeholder="마일스톤 선택" />
-                </SelectTrigger>
-                <SelectContent className="bg-[#3a4149] border-gray-600">
-                  <SelectItem value="all" className="text-white hover:bg-[#4a5159]">
-                    전체
-                  </SelectItem>
-                  {milestones.map((milestone) => (
-                    <SelectItem
-                      key={milestone.id}
-                      value={milestone.id}
-                      className="text-white hover:bg-[#4a5159]"
-                    >
-                      {milestone.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <span className="text-sm text-gray-500">마일스톤 없음</span>
-            )}
-            {/* 선택된 마일스톤 수정 버튼 */}
-            {selectedMilestoneId !== 'all' && onEditMilestone && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  const milestone = milestones.find((m) => m.id === selectedMilestoneId);
-                  if (milestone) {
-                    onEditMilestone(milestone);
-                  }
-                }}
-                className="h-8 w-8 p-0 text-gray-400 hover:text-white hover:bg-[#3a4149]"
-                title="마일스톤 수정"
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
-            )}
-            {onCreateMilestone && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onCreateMilestone}
-                className="h-8 px-2 text-gray-400 hover:text-white hover:bg-[#3a4149]"
-              >
-                + 추가
-              </Button>
-            )}
-          </div>
         </div>
         <div className="flex items-center gap-2 text-xs text-gray-500">
           <span className="inline-block w-3 h-3 bg-gray-400 rounded"></span> 진행 전
@@ -759,34 +801,60 @@ export function WeeklyScheduleView({
 
         {/* 오른쪽 스크롤 영역 (타임라인) */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* 헤더: 날짜들 */}
+          {/* 헤더: 날짜들 또는 주 */}
           <div
             ref={headerScrollRef}
             className="h-14 bg-[#282e33] border-b border-gray-700 overflow-hidden"
           >
             <div className="flex" style={{ width: totalGridWidth }}>
-              {days.map((day, index) => {
-                const dayIsToday = isToday(day);
-                const dayOfWeek = getDay(day);
-                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+              {viewMode === 'day' ? (
+                // 일 단위 헤더
+                days.map((day, index) => {
+                  const dayIsToday = isToday(day);
+                  const dayOfWeek = getDay(day);
+                  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-                return (
-                  <div
-                    key={index}
-                    className={`flex-shrink-0 p-2 text-center border-r border-gray-700 ${
-                      dayIsToday ? 'bg-blue-600/20' : isWeekend ? 'bg-gray-800/30' : ''
-                    }`}
-                    style={{ width: DAY_WIDTH }}
-                  >
-                    <div className={`text-xs font-medium ${dayIsToday ? 'text-blue-400' : isWeekend ? 'text-gray-500' : 'text-gray-400'}`}>
-                      {format(day, 'EEE', { locale: ko })}
+                  return (
+                    <div
+                      key={index}
+                      className={`flex-shrink-0 p-2 text-center border-r border-gray-700 ${
+                        dayIsToday ? 'bg-blue-600/20' : isWeekend ? 'bg-gray-800/30' : ''
+                      }`}
+                      style={{ width: DAY_WIDTH }}
+                    >
+                      <div className={`text-xs font-medium ${dayIsToday ? 'text-blue-400' : isWeekend ? 'text-gray-500' : 'text-gray-400'}`}>
+                        {format(day, 'EEE', { locale: ko })}
+                      </div>
+                      <div className={`text-xs ${dayIsToday ? 'text-blue-300' : 'text-gray-500'}`}>
+                        {format(day, 'M/d')}
+                      </div>
                     </div>
-                    <div className={`text-xs ${dayIsToday ? 'text-blue-300' : 'text-gray-500'}`}>
-                      {format(day, 'M/d')}
+                  );
+                })
+              ) : (
+                // 주 단위 헤더
+                weeks.map((week, index) => {
+                  const today = new Date();
+                  const isCurrentWeek = isWithinInterval(today, { start: week.start, end: week.end });
+
+                  return (
+                    <div
+                      key={index}
+                      className={`flex-shrink-0 p-2 text-center border-r border-gray-700 ${
+                        isCurrentWeek ? 'bg-blue-600/20' : ''
+                      }`}
+                      style={{ width: WEEK_WIDTH }}
+                    >
+                      <div className={`text-xs font-medium ${isCurrentWeek ? 'text-blue-400' : 'text-gray-400'}`}>
+                        {format(week.start, 'M/d')}
+                      </div>
+                      <div className={`text-xs ${isCurrentWeek ? 'text-blue-300' : 'text-gray-500'}`}>
+                        ~{format(week.end, 'M/d')}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -805,19 +873,35 @@ export function WeeklyScheduleView({
                 />
               )}
 
-              {/* 배경 그리드 (주말 표시) */}
+              {/* 배경 그리드 */}
               <div className="absolute inset-0 flex pointer-events-none">
-                {days.map((day, index) => {
-                  const dayOfWeek = getDay(day);
-                  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                  return (
-                    <div
-                      key={index}
-                      className={`flex-shrink-0 border-r border-gray-800 ${isWeekend ? 'bg-gray-800/20' : ''}`}
-                      style={{ width: DAY_WIDTH }}
-                    />
-                  );
-                })}
+                {viewMode === 'day' ? (
+                  // 일 단위 배경 (주말 표시)
+                  days.map((day, index) => {
+                    const dayOfWeek = getDay(day);
+                    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                    return (
+                      <div
+                        key={index}
+                        className={`flex-shrink-0 border-r border-gray-800 ${isWeekend ? 'bg-gray-800/20' : ''}`}
+                        style={{ width: DAY_WIDTH }}
+                      />
+                    );
+                  })
+                ) : (
+                  // 주 단위 배경
+                  weeks.map((week, index) => {
+                    const today = new Date();
+                    const isCurrentWeek = isWithinInterval(today, { start: week.start, end: week.end });
+                    return (
+                      <div
+                        key={index}
+                        className={`flex-shrink-0 border-r border-gray-800 ${isCurrentWeek ? 'bg-blue-900/10' : ''}`}
+                        style={{ width: WEEK_WIDTH }}
+                      />
+                    );
+                  })
+                )}
               </div>
 
               {/* Feature/Task 바들 */}
@@ -858,6 +942,8 @@ export function WeeklyScheduleView({
                         const hasEndDate = !!task.due_date;
                         const isDraggingThis = dragging?.taskId === task.id;
                         const isResizingThis = resizing?.taskId === task.id;
+                        // 주 단위 뷰에서는 드래그/리사이즈 비활성화
+                        const canDragResize = viewMode === 'day';
 
                         return (
                           <div key={task.id} className="h-10 relative border-b border-gray-800">
@@ -874,17 +960,17 @@ export function WeeklyScheduleView({
                                   width: taskBarPosition.width,
                                   minWidth: 20,
                                 }}
-                                onMouseDown={(e) => handleLongPressStart(e, task.id, task)}
-                                onMouseUp={handleLongPressEnd}
-                                onMouseLeave={handleLongPressEnd}
+                                onMouseDown={canDragResize ? (e) => handleLongPressStart(e, task.id, task) : undefined}
+                                onMouseUp={canDragResize ? handleLongPressEnd : undefined}
+                                onMouseLeave={canDragResize ? handleLongPressEnd : undefined}
                                 onClick={() => {
                                   if (!resizing && !dragging && !justFinishedDragRef.current) {
                                     onViewTask?.(task.id);
                                   }
                                 }}
                               >
-                                {/* 좌측 리사이즈 핸들 */}
-                                {hasStartDate && (
+                                {/* 좌측 리사이즈 핸들 - 일 단위에서만 표시 */}
+                                {canDragResize && hasStartDate && (
                                   <div
                                     data-resize-handle="left"
                                     className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize opacity-0 group-hover:opacity-100 bg-white/30 rounded-l hover:bg-white/50 z-10"
@@ -894,8 +980,8 @@ export function WeeklyScheduleView({
                                     }}
                                   />
                                 )}
-                                {/* 우측 리사이즈 핸들 */}
-                                {hasEndDate && (
+                                {/* 우측 리사이즈 핸들 - 일 단위에서만 표시 */}
+                                {canDragResize && hasEndDate && (
                                   <div
                                     data-resize-handle="right"
                                     className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize opacity-0 group-hover:opacity-100 bg-white/30 rounded-r hover:bg-white/50 z-10"

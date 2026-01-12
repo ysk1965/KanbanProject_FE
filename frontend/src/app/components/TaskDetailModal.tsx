@@ -33,7 +33,8 @@ import {
 import { Badge } from './ui/badge';
 import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { X, Plus, Trash2, Clock, CheckSquare, CalendarIcon } from 'lucide-react';
+import { X, Plus, Trash2, Clock, CheckSquare, CalendarIcon, FileText, Tags, Users, Layers } from 'lucide-react';
+import { Progress } from './ui/progress';
 import { DateRange } from 'react-day-picker';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
@@ -331,28 +332,45 @@ export function TaskDetailModal({
   return (
     <>
       <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" onPointerDownOutside={(e) => {
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto bg-bridge-obsidian border border-white/10 text-white" onPointerDownOutside={(e) => {
           if (hasChanges) {
             e.preventDefault();
             handleClose();
           }
         }}>
           <DialogHeader>
+            {/* 피처 & 블록 상태 표시 */}
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              {/* 피처 뱃지 */}
+              <div
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                style={{ backgroundColor: `${task.feature_color}20`, color: task.feature_color, border: `1px solid ${task.feature_color}40` }}
+              >
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: task.feature_color }} />
+                {task.feature_title}
+              </div>
+              {/* 현재 블록 상태 */}
+              {task.block_name && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-white/10 text-slate-300 border border-white/10">
+                  <Layers className="h-3 w-3" />
+                  {task.block_name}
+                </div>
+              )}
+            </div>
             <DialogTitle>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 flex-1">
-                  <div className="w-3 h-3 rounded-full bg-blue-500 flex-shrink-0" />
                   <Input
                     value={editedTask.title}
                     onChange={(e) => updateEditedTask({ title: e.target.value })}
-                    className="text-lg font-semibold border-0 p-0 focus-visible:ring-0"
+                    className="text-lg font-semibold border-0 p-0 focus-visible:ring-0 bg-transparent text-white"
                   />
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowDeleteDialog(true)}
-                  className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                  className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -363,103 +381,119 @@ export function TaskDetailModal({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            {/* 설명 */}
+          <div className="space-y-5">
+            {/* 설명 섹션 */}
             <div className="space-y-2">
-              <Label>설명</Label>
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-slate-400" />
+                <Label className="text-slate-400 font-medium">설명</Label>
+              </div>
               <Textarea
                 value={editedTask.description || ''}
                 onChange={(e) => updateEditedTask({ description: e.target.value })}
                 placeholder="설명이 없습니다."
                 rows={3}
+                className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:ring-bridge-accent/50 focus:border-bridge-accent"
               />
             </div>
 
-            {/* 기간 & 예상 시간 */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>기간</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full h-10 justify-start text-left font-normal"
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {editedTask.start_date || editedTask.due_date ? (
-                        <>
-                          {editedTask.start_date ? format(new Date(editedTask.start_date), 'yyyy. MM. dd.', { locale: ko }) : '시작일 미정'}
-                          {' ~ '}
-                          {editedTask.due_date ? format(new Date(editedTask.due_date), 'yyyy. MM. dd.', { locale: ko }) : '종료일 미정'}
-                        </>
-                      ) : (
-                        <span className="text-gray-400">날짜를 선택하세요</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="range"
-                      selected={{
-                        from: editedTask.start_date ? new Date(editedTask.start_date) : undefined,
-                        to: editedTask.due_date ? new Date(editedTask.due_date) : undefined,
-                      }}
-                      onSelect={(range) => {
-                        updateEditedTask({
-                          start_date: range?.from ? format(range.from, 'yyyy-MM-dd') : null,
-                          due_date: range?.to ? format(range.to, 'yyyy-MM-dd') : null,
-                        });
-                      }}
-                      numberOfMonths={2}
-                      locale={ko}
-                    />
-                    {(editedTask.start_date || editedTask.due_date) && (
-                      <div className="p-2 border-t">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full text-xs text-red-500 hover:text-red-700"
-                          onClick={() => updateEditedTask({ start_date: null, due_date: null })}
-                        >
-                          날짜 삭제
-                        </Button>
-                      </div>
-                    )}
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              <div className="space-y-2">
-                <Label>예상 시간 (분)</Label>
-                <Input
-                  type="number"
-                  value={editedTask.estimated_minutes || ''}
-                  onChange={(e) => updateEditedTask({ estimated_minutes: e.target.value ? parseInt(e.target.value) : null })}
-                  placeholder="예: 60"
-                />
-              </div>
-            </div>
-
-            {/* 담당자 */}
+            {/* 기간 섹션 */}
             <div className="space-y-2">
-              <Label>담당자</Label>
               <div className="flex items-center gap-2">
-                {editedTask.assignee ? (
-                  <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg">
-                    <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-xs text-white">
-                      {editedTask.assignee.name.charAt(0).toUpperCase()}
+                <CalendarIcon className="h-4 w-4 text-slate-400" />
+                <Label className="text-slate-400 font-medium">기간</Label>
+              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full h-10 justify-start text-left font-normal bg-white/5 border-white/10 text-white hover:bg-white/10 hover:text-white"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4 text-slate-400" />
+                    {editedTask.start_date || editedTask.due_date ? (
+                      <>
+                        {editedTask.start_date ? format(new Date(editedTask.start_date), 'yyyy. MM. dd.', { locale: ko }) : '시작일 미정'}
+                        {' ~ '}
+                        {editedTask.due_date ? format(new Date(editedTask.due_date), 'yyyy. MM. dd.', { locale: ko }) : '종료일 미정'}
+                      </>
+                    ) : (
+                      <span className="text-slate-500">날짜를 선택하세요</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 bg-bridge-obsidian border-white/10" align="start">
+                  <Calendar
+                    mode="range"
+                    selected={{
+                      from: editedTask.start_date ? new Date(editedTask.start_date) : undefined,
+                      to: editedTask.due_date ? new Date(editedTask.due_date) : undefined,
+                    }}
+                    onSelect={(range) => {
+                      updateEditedTask({
+                        start_date: range?.from ? format(range.from, 'yyyy-MM-dd') : null,
+                        due_date: range?.to ? format(range.to, 'yyyy-MM-dd') : null,
+                      });
+                    }}
+                    numberOfMonths={2}
+                    locale={ko}
+                    className="bg-bridge-obsidian text-white"
+                  />
+                  {(editedTask.start_date || editedTask.due_date) && (
+                    <div className="p-2 border-t border-white/10">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                        onClick={() => updateEditedTask({ start_date: null, due_date: null })}
+                      >
+                        날짜 삭제
+                      </Button>
                     </div>
-                    <span className="text-sm">{editedTask.assignee.name}</span>
-                  </div>
-                ) : (
-                  <span className="text-sm text-gray-500">담당자 없음</span>
-                )}
+                  )}
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* 담당자 섹션 (체크리스트 담당자들) */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-slate-400" />
+                <Label className="text-slate-400 font-medium">담당자</Label>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {(() => {
+                  // 체크리스트에서 중복 제거된 담당자 목록
+                  const uniqueAssignees = checklistItems
+                    .filter((item) => item.assignee)
+                    .reduce((acc, item) => {
+                      if (item.assignee && !acc.find((a) => a.id === item.assignee!.id)) {
+                        acc.push(item.assignee);
+                      }
+                      return acc;
+                    }, [] as Array<{ id: string; name: string; profile_image: string | null }>);
+
+                  if (uniqueAssignees.length === 0) {
+                    return <span className="text-sm text-slate-500">체크리스트에 담당자를 추가하세요</span>;
+                  }
+
+                  return uniqueAssignees.map((assignee) => (
+                    <div key={assignee.id} className="flex items-center gap-2 px-3 py-2 bg-bridge-accent/20 border border-bridge-accent/30 rounded-lg">
+                      <div className="w-6 h-6 rounded-full bg-bridge-accent flex items-center justify-center text-xs text-white">
+                        {assignee.name.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-sm text-white">{assignee.name}</span>
+                    </div>
+                  ));
+                })()}
               </div>
             </div>
 
-            {/* 태그 */}
+            {/* 태그 섹션 */}
             <div className="space-y-2">
-              <Label>태그</Label>
+              <div className="flex items-center gap-2">
+                <Tags className="h-4 w-4 text-slate-400" />
+                <Label className="text-slate-400 font-medium">태그</Label>
+              </div>
               <div className="flex flex-wrap gap-2">
                 {taskTags.map((tag) => (
                   <Badge
@@ -483,14 +517,14 @@ export function TaskDetailModal({
                       value={newTagName}
                       onChange={(e) => setNewTagName(e.target.value)}
                       placeholder="태그 이름"
-                      className="h-7 w-32 text-sm"
+                      className="h-7 w-32 text-sm bg-white/5 border-white/10 text-white placeholder:text-slate-500"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           handleCreateNewTag();
                         }
                       }}
                     />
-                    <Button size="sm" onClick={handleCreateNewTag}>
+                    <Button size="sm" onClick={handleCreateNewTag} className="bg-bridge-accent hover:bg-bridge-accent/90">
                       생성
                     </Button>
                     <Button
@@ -500,6 +534,7 @@ export function TaskDetailModal({
                         setShowTagInput(false);
                         setNewTagName('');
                       }}
+                      className="text-slate-400 hover:text-white hover:bg-white/10"
                     >
                       취소
                     </Button>
@@ -508,12 +543,12 @@ export function TaskDetailModal({
                   <div className="flex gap-1">
                     {availableTagsToAdd.length > 0 && (
                       <Select onValueChange={handleAddTag}>
-                        <SelectTrigger className="w-[120px] h-7 text-sm">
+                        <SelectTrigger className="w-[120px] h-7 text-sm bg-white/5 border-white/10 text-white">
                           <SelectValue placeholder="태그 추가" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="bg-bridge-obsidian border-white/10">
                           {availableTagsToAdd.map((tag) => (
-                            <SelectItem key={tag.id} value={tag.id}>
+                            <SelectItem key={tag.id} value={tag.id} className="text-white hover:bg-white/10">
                               <div className="flex items-center gap-2">
                                 <div
                                   className="w-3 h-3 rounded-full"
@@ -530,6 +565,7 @@ export function TaskDetailModal({
                       size="sm"
                       variant="outline"
                       onClick={() => setShowTagInput(true)}
+                      className="bg-white/5 border-white/10 text-white hover:bg-white/10"
                     >
                       <Plus className="h-3 w-3 mr-1" />
                       새 태그
@@ -541,13 +577,13 @@ export function TaskDetailModal({
           </div>
 
           {/* 체크리스트 섹션 */}
-          <div className="mt-6 pt-6 border-t">
+          <div className="mt-6 pt-6 border-t border-white/10">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <CheckSquare className="h-5 w-5 text-gray-600" />
-                <Label className="text-base font-semibold">CheckList</Label>
+                <CheckSquare className="h-5 w-5 text-slate-400" />
+                <Label className="text-base font-semibold text-white">CheckList</Label>
               </div>
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-slate-400">
                 {checklistProgress}%
               </div>
             </div>
@@ -574,11 +610,11 @@ export function TaskDetailModal({
 
           {/* 저장 버튼 - 변경사항이 있을 때만 표시 */}
           {hasChanges && (
-            <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button variant="outline" onClick={handleClose}>
+            <div className="flex justify-end gap-2 pt-4 border-t border-white/10">
+              <Button variant="outline" onClick={handleClose} className="bg-white/5 border-white/10 text-white hover:bg-white/10">
                 취소
               </Button>
-              <Button onClick={handleSave}>
+              <Button onClick={handleSave} className="bg-bridge-accent hover:bg-bridge-accent/90">
                 저장
               </Button>
             </div>
@@ -588,18 +624,18 @@ export function TaskDetailModal({
 
       {/* 확인 다이얼로그 */}
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-bridge-obsidian border-white/10">
           <AlertDialogHeader>
-            <AlertDialogTitle>변경사항을 저장하시겠습니까?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-white">변경사항을 저장하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
               저장하지 않은 변경사항이 있습니다. 저장하지 않고 닫으면 변경사항이 사라집니다.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleDiscardAndClose}>
+            <AlertDialogCancel onClick={handleDiscardAndClose} className="bg-white/5 border-white/10 text-white hover:bg-white/10">
               저장 안 함
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handleSaveAndClose}>
+            <AlertDialogAction onClick={handleSaveAndClose} className="bg-bridge-accent hover:bg-bridge-accent/90">
               저장
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -608,15 +644,15 @@ export function TaskDetailModal({
 
       {/* 삭제 다이얼로그 */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-bridge-obsidian border-white/10">
           <AlertDialogHeader>
-            <AlertDialogTitle>이 작업을 삭제하시겠습니까?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-white">이 작업을 삭제하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
               삭제된 작업은 복구할 수 없습니다.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setShowDeleteDialog(false)}>
+            <AlertDialogCancel onClick={() => setShowDeleteDialog(false)} className="bg-white/5 border-white/10 text-white hover:bg-white/10">
               취소
             </AlertDialogCancel>
             <AlertDialogAction
@@ -627,6 +663,7 @@ export function TaskDetailModal({
                 setShowDeleteDialog(false);
                 onClose();
               }}
+              className="bg-red-500 hover:bg-red-600 text-white"
             >
               삭제
             </AlertDialogAction>
@@ -680,12 +717,12 @@ function ChecklistItemRow({
     !item.completed;
 
   return (
-    <div className="group flex items-start gap-2 p-2 rounded hover:bg-gray-50 border border-transparent hover:border-gray-200">
+    <div className="group flex items-start gap-2 p-2 rounded hover:bg-white/5 border border-transparent hover:border-white/10">
       {/* 체크박스 */}
       <button
         onClick={onToggle}
         className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 mt-0.5 ${
-          item.completed ? 'bg-green-500' : 'bg-gray-300 hover:bg-gray-400'
+          item.completed ? 'bg-green-500' : 'bg-slate-600 hover:bg-slate-500'
         }`}
       >
         {item.completed && (
@@ -711,13 +748,13 @@ function ChecklistItemRow({
             onChange={(e) => setEditedTitle(e.target.value)}
             onBlur={handleSaveTitle}
             onKeyDown={handleKeyDown}
-            className="text-xs h-6"
+            className="text-xs h-6 bg-white/5 border-white/10 text-white"
             autoFocus
           />
         ) : (
           <div
             className={`text-xs cursor-pointer ${
-              item.completed ? 'line-through text-gray-500' : 'text-gray-900'
+              item.completed ? 'line-through text-slate-500' : 'text-white'
             }`}
             onClick={() => setIsEditing(true)}
           >
@@ -731,10 +768,10 @@ function ChecklistItemRow({
             <div
               className={`flex items-center gap-1 text-xs ${
                 isOverdue
-                  ? 'text-red-600'
+                  ? 'text-red-400'
                   : isDueSoon
-                  ? 'text-orange-600'
-                  : 'text-gray-500'
+                  ? 'text-orange-400'
+                  : 'text-slate-400'
               }`}
             >
               <CalendarIcon className="h-3 w-3" />
@@ -750,14 +787,14 @@ function ChecklistItemRow({
             </div>
           )}
           {item.done_date && (
-            <div className="flex items-center gap-1 text-xs text-green-600">
+            <div className="flex items-center gap-1 text-xs text-green-400">
               <span>완료:</span>
               {format(new Date(item.done_date), 'M/d', { locale: ko })}
             </div>
           )}
           {item.assignee && (
             <div className="flex items-center gap-1">
-              <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-xs text-white">
+              <div className="w-4 h-4 rounded-full bg-bridge-accent flex items-center justify-center text-xs text-white">
                 {item.assignee.name.charAt(0).toUpperCase()}
               </div>
             </div>
@@ -771,20 +808,20 @@ function ChecklistItemRow({
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 w-6 p-0"
+            className="h-6 w-6 p-0 text-slate-400 hover:text-white hover:bg-white/10"
             onClick={() => setShowOptions(!showOptions)}
           >
             •••
           </Button>
           {showOptions && (
-            <div className="absolute right-0 mt-1 bg-white border rounded-lg shadow-lg p-3 z-10 min-w-[220px]">
+            <div className="absolute right-0 mt-1 bg-bridge-obsidian border border-white/10 rounded-lg shadow-lg p-3 z-10 min-w-[220px]">
               <div className="space-y-2">
-                <div className="text-xs font-semibold text-gray-500">기간</div>
+                <div className="text-xs font-semibold text-slate-400">기간</div>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
-                      className="w-full h-7 text-xs justify-start text-left font-normal"
+                      className="w-full h-7 text-xs justify-start text-left font-normal bg-white/5 border-white/10 text-white hover:bg-white/10"
                     >
                       <CalendarIcon className="mr-2 h-3 w-3" />
                       {item.start_date || item.due_date ? (
@@ -793,11 +830,11 @@ function ChecklistItemRow({
                           {item.due_date ? format(new Date(item.due_date), 'MM/dd', { locale: ko }) : '?'}
                         </>
                       ) : (
-                        <span className="text-gray-400">날짜 선택</span>
+                        <span className="text-slate-500">날짜 선택</span>
                       )}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
+                  <PopoverContent className="w-auto p-0 bg-bridge-obsidian border-white/10" align="start">
                     <Calendar
                       mode="range"
                       selected={{
@@ -812,13 +849,14 @@ function ChecklistItemRow({
                       }}
                       numberOfMonths={1}
                       locale={ko}
+                      className="bg-bridge-obsidian text-white"
                     />
                     {(item.start_date || item.due_date) && (
-                      <div className="p-2 border-t">
+                      <div className="p-2 border-t border-white/10">
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="w-full text-xs text-red-500 hover:text-red-700"
+                          className="w-full text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
                           onClick={() => onUpdate({ start_date: null, due_date: null })}
                         >
                           날짜 삭제
@@ -828,7 +866,7 @@ function ChecklistItemRow({
                   </PopoverContent>
                 </Popover>
 
-                <div className="text-xs font-semibold text-gray-500 mt-2">담당자</div>
+                <div className="text-xs font-semibold text-slate-400 mt-2">담당자</div>
                 <Select
                   value={item.assignee?.id || 'none'}
                   onValueChange={(value) => {
@@ -842,17 +880,17 @@ function ChecklistItemRow({
                     }
                   }}
                 >
-                  <SelectTrigger className="h-7 text-xs">
+                  <SelectTrigger className="h-7 text-xs bg-white/5 border-white/10 text-white">
                     <SelectValue placeholder="없음" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">
+                  <SelectContent className="bg-bridge-obsidian border-white/10">
+                    <SelectItem value="none" className="text-white hover:bg-white/10">
                       <span className="text-xs">없음</span>
                     </SelectItem>
                     {boardMembers.map((member) => (
-                      <SelectItem key={member.userId} value={member.userId}>
+                      <SelectItem key={member.userId} value={member.userId} className="text-white hover:bg-white/10">
                         <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-[10px] text-white flex-shrink-0">
+                          <div className="w-4 h-4 rounded-full bg-bridge-accent flex items-center justify-center text-[10px] text-white flex-shrink-0">
                             {member.name.charAt(0).toUpperCase()}
                           </div>
                           <span className="text-xs">{member.name}</span>
@@ -868,7 +906,7 @@ function ChecklistItemRow({
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+          className="h-6 w-6 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/10"
           onClick={onDelete}
         >
           <Trash2 className="h-3 w-3" />
@@ -948,7 +986,7 @@ function AddChecklistItemInput({
       <Button
         variant="ghost"
         size="sm"
-        className="w-full justify-start text-gray-600 hover:bg-gray-100"
+        className="w-full justify-start text-slate-400 hover:text-white hover:bg-white/5"
         onClick={handleStartAdding}
       >
         <Plus className="h-4 w-4 mr-2" />
@@ -958,29 +996,29 @@ function AddChecklistItemInput({
   }
 
   return (
-    <div className="p-2 border border-gray-200 rounded-lg bg-gray-50">
+    <div className="p-3 border border-white/10 rounded-lg bg-white/5">
       <div className="flex gap-2 items-start">
-        <div className="w-4 h-4 rounded bg-gray-200 flex-shrink-0 mt-1.5" />
+        <div className="w-4 h-4 rounded bg-slate-600 flex-shrink-0 mt-1.5" />
         <div className="flex-1 space-y-2">
           <Input
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="항목 입력..."
-            className="text-xs h-7"
+            className="text-xs h-7 bg-white/5 border-white/10 text-white placeholder:text-slate-500"
             autoFocus
           />
 
           {/* 옵션 필드들 */}
-          <div className="flex gap-2 pt-2 border-t border-gray-200">
+          <div className="flex gap-2 pt-2 border-t border-white/10">
               {/* 날짜 범위 선택 */}
               <div className="flex-1">
-                <label className="text-xs text-gray-500 block mb-1">기간</label>
+                <label className="text-xs text-slate-400 block mb-1">기간</label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
-                      className="w-full h-7 text-xs justify-start text-left font-normal"
+                      className="w-full h-7 text-xs justify-start text-left font-normal bg-white/5 border-white/10 text-white hover:bg-white/10"
                     >
                       <CalendarIcon className="mr-2 h-3 w-3" />
                       {dateRange?.from ? (
@@ -993,17 +1031,18 @@ function AddChecklistItemInput({
                           format(dateRange.from, 'MM/dd', { locale: ko })
                         )
                       ) : (
-                        <span className="text-gray-400">날짜 선택</span>
+                        <span className="text-slate-500">날짜 선택</span>
                       )}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
+                  <PopoverContent className="w-auto p-0 bg-bridge-obsidian border-white/10" align="start">
                     <Calendar
                       mode="range"
                       selected={dateRange}
                       onSelect={setDateRange}
                       numberOfMonths={1}
                       locale={ko}
+                      className="bg-bridge-obsidian text-white"
                     />
                   </PopoverContent>
                 </Popover>
@@ -1011,15 +1050,15 @@ function AddChecklistItemInput({
 
               {/* 담당자 */}
               <div className="flex-1">
-                <label className="text-xs text-gray-500 block mb-1">담당자</label>
+                <label className="text-xs text-slate-400 block mb-1">담당자</label>
                 <Select
                   value={assigneeId || 'none'}
                   onValueChange={(val) => setAssigneeId(val === 'none' ? '' : val)}
                 >
-                  <SelectTrigger className="h-7 text-xs">
+                  <SelectTrigger className="h-7 text-xs bg-white/5 border-white/10 text-white">
                     {selectedMember ? (
                       <div className="flex items-center gap-1">
-                        <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-[10px] text-white flex-shrink-0">
+                        <div className="w-4 h-4 rounded-full bg-bridge-accent flex items-center justify-center text-[10px] text-white flex-shrink-0">
                           {selectedMember.name.charAt(0).toUpperCase()}
                         </div>
                         <span>{selectedMember.name}</span>
@@ -1028,19 +1067,19 @@ function AddChecklistItemInput({
                       <SelectValue placeholder="없음" />
                     )}
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">
+                  <SelectContent className="bg-bridge-obsidian border-white/10">
+                    <SelectItem value="none" className="text-white hover:bg-white/10">
                       <span className="text-xs">없음</span>
                     </SelectItem>
                     {boardMembers.map((member) => (
-                      <SelectItem key={member.userId} value={member.userId}>
+                      <SelectItem key={member.userId} value={member.userId} className="text-white hover:bg-white/10">
                         <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-[10px] text-white flex-shrink-0">
+                          <div className="w-4 h-4 rounded-full bg-bridge-accent flex items-center justify-center text-[10px] text-white flex-shrink-0">
                             {member.name.charAt(0).toUpperCase()}
                           </div>
                           <span className="text-xs">{member.name}</span>
                           {member.userId === currentUser?.id && (
-                            <span className="text-[10px] text-gray-400">(나)</span>
+                            <span className="text-[10px] text-slate-500">(나)</span>
                           )}
                         </div>
                       </SelectItem>
@@ -1054,14 +1093,14 @@ function AddChecklistItemInput({
 
       {/* 버튼 영역 */}
       <div className="flex justify-end gap-2 mt-2">
-        <Button size="sm" onClick={handleAdd} className="h-7">
+        <Button size="sm" onClick={handleAdd} className="h-7 bg-bridge-accent hover:bg-bridge-accent/90">
           추가
         </Button>
         <Button
           size="sm"
           variant="ghost"
           onClick={handleCancel}
-          className="h-7"
+          className="h-7 text-slate-400 hover:text-white hover:bg-white/10"
         >
           취소
         </Button>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDrag } from 'react-dnd';
 import { Task, DragItem, Tag, ChecklistItem } from '../types';
 import { GripVertical, ChevronDown, ChevronUp, CheckSquare } from 'lucide-react';
@@ -28,6 +28,7 @@ export function KanbanCard({ task, blockId, onClick, availableTags = [], boardId
   });
 
   const taskTags = availableTags.filter((tag) => task.tags?.includes(tag.id));
+  const hasChecklist = (task.checklist_total ?? 0) > 0;
 
   // 체크리스트 로드
   const loadChecklist = async () => {
@@ -42,6 +43,8 @@ export function KanbanCard({ task, blockId, onClick, availableTags = [], boardId
         completed: item.completed,
         position: item.position,
         due_date: item.due_date,
+        start_date: item.start_date,
+        done_date: item.done_date,
         assignee: item.assignee ? { id: item.assignee.id, name: item.assignee.name, profile_image: item.assignee.profile_image } : null,
       }));
       setChecklistItems(items);
@@ -52,6 +55,23 @@ export function KanbanCard({ task, blockId, onClick, availableTags = [], boardId
       setIsLoading(false);
     }
   };
+
+  // 체크리스트가 있으면 자동 로드 (담당자 표시를 위해)
+  useEffect(() => {
+    if (hasChecklist && boardId && !hasLoaded) {
+      loadChecklist();
+    }
+  }, [hasChecklist, boardId]);
+
+  // 체크리스트 담당자들 (중복 제거)
+  const checklistAssignees = checklistItems
+    .filter((item) => item.assignee)
+    .reduce((acc, item) => {
+      if (item.assignee && !acc.find((a) => a.id === item.assignee!.id)) {
+        acc.push(item.assignee);
+      }
+      return acc;
+    }, [] as Array<{ id: string; name: string; profile_image: string | null }>);
 
   // 확장 버튼 클릭 핸들러
   const handleExpandClick = async (e: React.MouseEvent) => {
@@ -87,7 +107,6 @@ export function KanbanCard({ task, blockId, onClick, availableTags = [], boardId
   };
 
   const completedCount = checklistItems.filter((item) => item.completed).length;
-  const hasChecklist = (task.checklist_total ?? 0) > 0;
 
   return (
     <div
@@ -119,34 +138,25 @@ export function KanbanCard({ task, blockId, onClick, availableTags = [], boardId
             </div>
           )}
 
-          {/* 담당자 및 참여자 */}
-          <div className="mt-2 flex items-center gap-1 flex-wrap">
-            {task.assignee && (
-              <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-xs text-white">
-                {typeof task.assignee === 'string'
-                  ? task.assignee.charAt(0).toUpperCase()
-                  : task.assignee.name.charAt(0).toUpperCase()}
-              </div>
-            )}
-            {task.participants && task.participants.length > 0 && (
-              <div className="flex items-center gap-1">
-                {task.participants.slice(0, 3).map((participant, idx) => (
-                  <div
-                    key={idx}
-                    className="w-6 h-6 rounded-full bg-purple-400 flex items-center justify-center text-xs text-white border-2 border-white"
-                    title={participant}
-                  >
-                    {participant.charAt(0).toUpperCase()}
-                  </div>
-                ))}
-                {task.participants.length > 3 && (
-                  <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs text-gray-700">
-                    +{task.participants.length - 3}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          {/* 체크리스트 담당자들 */}
+          {checklistAssignees.length > 0 && (
+            <div className="mt-2 flex items-center gap-1 flex-wrap">
+              {checklistAssignees.slice(0, 3).map((assignee) => (
+                <div
+                  key={assignee.id}
+                  className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-xs text-white"
+                  title={assignee.name}
+                >
+                  {assignee.name.charAt(0).toUpperCase()}
+                </div>
+              ))}
+              {checklistAssignees.length > 3 && (
+                <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs text-gray-700">
+                  +{checklistAssignees.length - 3}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 체크리스트 펼침 */}
           {hasChecklist && boardId && (

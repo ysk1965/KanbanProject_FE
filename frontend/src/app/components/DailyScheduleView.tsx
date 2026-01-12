@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Settings, Plus, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
-import { format, addDays, subDays, startOfDay } from 'date-fns';
+import { format, addDays, subDays, startOfDay, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { BoardMember } from './ShareBoardModal';
 import { ScheduleBlock } from './ScheduleBlock';
@@ -40,10 +40,14 @@ const parseHour = (time: string): number => {
   return parseInt(time.split(':')[0], 10);
 };
 
+type ScheduleViewMode = 'day' | 'week';
+
 export function DailyScheduleView({ boardId, boardMembers, onViewFeature, onViewTask, refreshTrigger }: DailyScheduleViewProps) {
+  const [viewMode, setViewMode] = useState<ScheduleViewMode>('day');
   const [selectedDate, setSelectedDate] = useState<Date>(startOfDay(new Date()));
   const [isLoading, setIsLoading] = useState(false);
   const [columns, setColumns] = useState<ScheduleColumnInfo[]>([]);
+  const [weeklyData, setWeeklyData] = useState<Map<string, ScheduleColumnInfo[]>>(new Map());
   const [settings, setSettings] = useState<ScheduleSettingsResponse | null>(null);
 
   // 드래그 선택 상태
@@ -84,23 +88,47 @@ export function DailyScheduleView({ boardId, boardMembers, onViewFeature, onView
     [workStartHour, workEndHour]
   );
 
+  // 주 단위 날짜 배열 계산
+  const weekDays = useMemo(() => {
+    const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 }); // 월요일 시작
+    const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });
+    return eachDayOfInterval({ start: weekStart, end: weekEnd });
+  }, [selectedDate]);
+
   // 스케줄 데이터 로드
   const loadSchedule = useCallback(async () => {
     if (!boardId) return;
 
     setIsLoading(true);
     try {
-      const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      const response = await scheduleAPI.getDailySchedule(boardId, dateStr);
+      if (viewMode === 'day') {
+        const dateStr = format(selectedDate, 'yyyy-MM-dd');
+        const response = await scheduleAPI.getDailySchedule(boardId, dateStr);
+        setColumns(response.columns);
+        setSettings(response.settings);
+      } else {
+        // 주 단위: 7일치 데이터 병렬 로드
+        const responses = await Promise.all(
+          weekDays.map(async (day) => {
+            const dateStr = format(day, 'yyyy-MM-dd');
+            const response = await scheduleAPI.getDailySchedule(boardId, dateStr);
+            return { date: dateStr, columns: response.columns, settings: response.settings };
+          })
+        );
 
-      setColumns(response.columns);
-      setSettings(response.settings);
+        const newWeeklyData = new Map<string, ScheduleColumnInfo[]>();
+        responses.forEach(({ date, columns: cols, settings: s }) => {
+          newWeeklyData.set(date, cols);
+          if (!settings && s) setSettings(s);
+        });
+        setWeeklyData(newWeeklyData);
+      }
     } catch (error) {
       console.error('Failed to load schedule:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [boardId, selectedDate]);
+  }, [boardId, selectedDate, viewMode, weekDays]);
 
   useEffect(() => {
     loadSchedule();
@@ -120,12 +148,26 @@ export function DailyScheduleView({ boardId, boardMembers, onViewFeature, onView
     }
   }, [columns]);
 
-  const handlePrevDay = () => setSelectedDate(subDays(selectedDate, 1));
-  const handleNextDay = () => setSelectedDate(addDays(selectedDate, 1));
+  // 날짜 네비게이션
+  const handlePrev = () => {
+    if (viewMode === 'day') {
+      setSelectedDate(subDays(selectedDate, 1));
+    } else {
+      setSelectedDate(subWeeks(selectedDate, 1));
+    }
+  };
+  const handleNext = () => {
+    if (viewMode === 'day') {
+      setSelectedDate(addDays(selectedDate, 1));
+    } else {
+      setSelectedDate(addWeeks(selectedDate, 1));
+    }
+  };
   const handleToday = () => setSelectedDate(startOfDay(new Date()));
 
   const dayOfWeek = format(selectedDate, 'EEEE', { locale: ko });
   const isToday = format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+  const isTodayInWeek = weekDays.some(d => format(d, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd'));
 
   // 멤버별 블록 매핑
   const blocksByUser = useMemo(() => {
@@ -302,33 +344,61 @@ export function DailyScheduleView({ boardId, boardMembers, onViewFeature, onView
       {/* 상단 날짜 네비게이션 */}
       <div className="flex items-center justify-between px-6 py-3 bg-[#282e33] border-b border-gray-700">
         <div className="flex items-center gap-4">
+          {/* 일/주 토글 */}
+          <div
+            className="flex bg-[#1d2125] rounded-lg p-1 cursor-pointer"
+            onClick={() => setViewMode(viewMode === 'day' ? 'week' : 'day')}
+          >
+            <span
+              className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                viewMode === 'day'
+                  ? 'bg-[#3a4149] text-white'
+                  : 'text-gray-400'
+              }`}
+            >
+              일
+            </span>
+            <span
+              className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                viewMode === 'week'
+                  ? 'bg-[#3a4149] text-white'
+                  : 'text-gray-400'
+              }`}
+            >
+              주
+            </span>
+          </div>
+
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
               size="sm"
-              onClick={handlePrevDay}
+              onClick={handlePrev}
               className="text-gray-400 hover:text-white hover:bg-[#3a4149] h-8 w-8 p-0"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="text-lg font-semibold text-white min-w-[200px] text-center">
-              {format(selectedDate, 'yyyy년 M월 d일', { locale: ko })} ({dayOfWeek})
+            <span className="text-lg font-semibold text-white min-w-[280px] text-center">
+              {viewMode === 'day'
+                ? `${format(selectedDate, 'yyyy년 M월 d일', { locale: ko })} (${dayOfWeek})`
+                : `${format(weekDays[0], 'M월 d일', { locale: ko })} - ${format(weekDays[6], 'M월 d일', { locale: ko })}`
+              }
             </span>
             <Button
               variant="ghost"
               size="sm"
-              onClick={handleNextDay}
+              onClick={handleNext}
               className="text-gray-400 hover:text-white hover:bg-[#3a4149] h-8 w-8 p-0"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
           <Button
-            variant={isToday ? 'default' : 'outline'}
+            variant={(viewMode === 'day' ? isToday : isTodayInWeek) ? 'default' : 'outline'}
             size="sm"
             onClick={handleToday}
             className={
-              isToday
+              (viewMode === 'day' ? isToday : isTodayInWeek)
                 ? 'bg-blue-600 hover:bg-blue-700 text-white'
                 : 'border-gray-600 text-gray-300 hover:bg-[#3a4149] hover:text-white'
             }
@@ -350,105 +420,195 @@ export function DailyScheduleView({ boardId, boardMembers, onViewFeature, onView
 
       {/* 스케줄 그리드 */}
       <div className="flex-1 overflow-auto">
-        <div className="min-w-max">
-          {/* 헤더: 시간/블록 + 멤버 컬럼 */}
-          <div className="flex sticky top-0 bg-[#282e33] z-10 border-b border-gray-700">
-            <div className="w-20 flex-shrink-0 p-3 text-sm font-medium text-gray-400 border-r border-gray-700">
-              {displayMode === 'block' ? '블록' : '시간'}
-            </div>
-            {boardMembers.map((member) => (
-              <div
-                key={member.userId}
-                className="w-48 flex-shrink-0 p-3 border-r border-gray-700"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-sm text-white font-medium">
-                    {member.name.charAt(0).toUpperCase()}
+        {viewMode === 'day' ? (
+          /* 일 단위 뷰 */
+          <div className="min-w-max">
+            {/* 헤더: 시간/블록 + 멤버 컬럼 */}
+            <div className="flex sticky top-0 bg-[#282e33] z-10 border-b border-gray-700">
+              <div className="w-20 flex-shrink-0 p-3 text-sm font-medium text-gray-400 border-r border-gray-700">
+                {displayMode === 'block' ? '블록' : '시간'}
+              </div>
+              {boardMembers.map((member) => (
+                <div
+                  key={member.userId}
+                  className="w-48 flex-shrink-0 p-3 border-r border-gray-700"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-sm text-white font-medium">
+                      {member.name.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="text-sm font-medium text-white">{member.name}</span>
                   </div>
-                  <span className="text-sm font-medium text-white">{member.name}</span>
                 </div>
+              ))}
+              {boardMembers.length === 0 && (
+                <div className="flex-1 p-3 text-gray-500 text-sm">보드에 멤버가 없습니다</div>
+              )}
+            </div>
+
+            {/* 시간 그리드 */}
+            <div className="relative">
+              {timeSlots.map((time, slotIndex) => (
+                <div key={time} className="flex border-b border-gray-800">
+                  {/* 시간/블록 라벨 */}
+                  <div className="w-20 flex-shrink-0 p-2 text-xs text-gray-500 border-r border-gray-700 bg-[#1d2125]">
+                    {displayMode === 'block'
+                      ? `${slotIndex + 1}`
+                      : time.endsWith(':00') ? time : ''}
+                  </div>
+                  {/* 멤버별 시간 셀 */}
+                  {boardMembers.map((member) => {
+                    const isSelected = isSlotSelected(member.userId, slotIndex);
+                    return (
+                      <div
+                        key={`${member.userId}-${time}`}
+                        className={`w-48 flex-shrink-0 border-r border-gray-800 transition-colors cursor-pointer group relative ${
+                          isSelected ? 'bg-blue-500/30' : 'hover:bg-[#2a3038]'
+                        }`}
+                        style={{ height: `${SLOT_HEIGHT}px` }}
+                        onMouseDown={() => handleMouseDown(member.userId, slotIndex)}
+                        onMouseEnter={() => handleMouseEnter(member.userId, slotIndex)}
+                      >
+                        {/* 빈 셀 호버 시 + 버튼 표시 */}
+                        {!isSelected && (
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                            <Plus className="h-4 w-4 text-gray-500" />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {boardMembers.length === 0 && (
+                    <div className="flex-1 border-r border-gray-800" style={{ height: `${SLOT_HEIGHT}px` }} />
+                  )}
+                </div>
+              ))}
+
+              {/* 스케줄 블록들 (각 멤버 컬럼 위에 absolute로 배치) */}
+              <div className="absolute top-0 left-20 right-0 pointer-events-none">
+                <div className="flex">
+                  {boardMembers.map((member) => {
+                    const blocks = blocksByUser.get(member.userId) || [];
+                    return (
+                      <div
+                        key={member.userId}
+                        className="w-48 flex-shrink-0 relative"
+                        style={{ height: `${timeSlots.length * SLOT_HEIGHT}px` }}
+                      >
+                        {blocks.map((block) => (
+                          <ScheduleBlock
+                            key={block.id}
+                            block={block}
+                            slotHeight={SLOT_HEIGHT}
+                            workStartHour={workStartHour}
+                            workEndHour={workEndHour}
+                            otherBlocks={blocks}
+                            onClick={handleBlockClick}
+                            onResize={handleBlockResize}
+                            onMove={handleBlockResize}
+                          />
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* 주 단위 뷰 */
+          <div className="min-w-max">
+            {/* 헤더: 멤버 + 요일 */}
+            <div className="flex sticky top-0 bg-[#282e33] z-10 border-b border-gray-700">
+              <div className="w-32 flex-shrink-0 p-3 text-sm font-medium text-gray-400 border-r border-gray-700">
+                멤버
+              </div>
+              {weekDays.map((day) => {
+                const dateStr = format(day, 'yyyy-MM-dd');
+                const isCurrentDay = dateStr === format(new Date(), 'yyyy-MM-dd');
+                return (
+                  <div
+                    key={dateStr}
+                    className={`w-36 flex-shrink-0 p-3 border-r border-gray-700 text-center ${
+                      isCurrentDay ? 'bg-blue-900/30' : ''
+                    }`}
+                  >
+                    <div className={`text-sm font-medium ${isCurrentDay ? 'text-blue-400' : 'text-white'}`}>
+                      {format(day, 'E', { locale: ko })}
+                    </div>
+                    <div className={`text-xs ${isCurrentDay ? 'text-blue-400' : 'text-gray-400'}`}>
+                      {format(day, 'M/d')}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 멤버별 행 */}
+            {boardMembers.map((member) => (
+              <div key={member.userId} className="flex border-b border-gray-800">
+                {/* 멤버 정보 */}
+                <div className="w-32 flex-shrink-0 p-3 border-r border-gray-700 bg-[#1d2125]">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-sm text-white font-medium">
+                      {member.name.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="text-sm font-medium text-white truncate">{member.name}</span>
+                  </div>
+                </div>
+                {/* 요일별 블록들 */}
+                {weekDays.map((day) => {
+                  const dateStr = format(day, 'yyyy-MM-dd');
+                  const isCurrentDay = dateStr === format(new Date(), 'yyyy-MM-dd');
+                  const dayColumns = weeklyData.get(dateStr) || [];
+                  const memberColumn = dayColumns.find((col) => col.user.id === member.userId);
+                  const blocks = memberColumn?.blocks || [];
+
+                  return (
+                    <div
+                      key={dateStr}
+                      className={`w-36 flex-shrink-0 p-2 border-r border-gray-800 min-h-[100px] ${
+                        isCurrentDay ? 'bg-blue-900/20' : ''
+                      }`}
+                    >
+                      <div className="space-y-1">
+                        {blocks.map((block) => (
+                          <div
+                            key={block.id}
+                            onClick={() => handleBlockClick(block)}
+                            className="p-2 rounded bg-purple-600/80 hover:bg-purple-600 cursor-pointer transition-colors"
+                          >
+                            <div className="text-xs text-white font-medium truncate">
+                              {block.checklist_item.title}
+                            </div>
+                            <div className="text-xs text-purple-200">
+                              {block.start_time.slice(0, 5)} - {block.end_time.slice(0, 5)}
+                            </div>
+                          </div>
+                        ))}
+                        {blocks.length === 0 && (
+                          <div className="text-xs text-gray-600 text-center py-4">-</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             ))}
             {boardMembers.length === 0 && (
-              <div className="flex-1 p-3 text-gray-500 text-sm">보드에 멤버가 없습니다</div>
+              <div className="p-6 text-gray-500 text-center">보드에 멤버가 없습니다</div>
             )}
           </div>
-
-          {/* 시간 그리드 */}
-          <div className="relative">
-            {timeSlots.map((time, slotIndex) => (
-              <div key={time} className="flex border-b border-gray-800">
-                {/* 시간/블록 라벨 */}
-                <div className="w-20 flex-shrink-0 p-2 text-xs text-gray-500 border-r border-gray-700 bg-[#1d2125]">
-                  {displayMode === 'block'
-                    ? `${slotIndex + 1}`
-                    : time.endsWith(':00') ? time : ''}
-                </div>
-                {/* 멤버별 시간 셀 */}
-                {boardMembers.map((member) => {
-                  const isSelected = isSlotSelected(member.userId, slotIndex);
-                  return (
-                    <div
-                      key={`${member.userId}-${time}`}
-                      className={`w-48 flex-shrink-0 border-r border-gray-800 transition-colors cursor-pointer group relative ${
-                        isSelected ? 'bg-blue-500/30' : 'hover:bg-[#2a3038]'
-                      }`}
-                      style={{ height: `${SLOT_HEIGHT}px` }}
-                      onMouseDown={() => handleMouseDown(member.userId, slotIndex)}
-                      onMouseEnter={() => handleMouseEnter(member.userId, slotIndex)}
-                    >
-                      {/* 빈 셀 호버 시 + 버튼 표시 */}
-                      {!isSelected && (
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                          <Plus className="h-4 w-4 text-gray-500" />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-                {boardMembers.length === 0 && (
-                  <div className="flex-1 border-r border-gray-800" style={{ height: `${SLOT_HEIGHT}px` }} />
-                )}
-              </div>
-            ))}
-
-            {/* 스케줄 블록들 (각 멤버 컬럼 위에 absolute로 배치) */}
-            <div className="absolute top-0 left-20 right-0 pointer-events-none">
-              <div className="flex">
-                {boardMembers.map((member) => {
-                  const blocks = blocksByUser.get(member.userId) || [];
-                  return (
-                    <div
-                      key={member.userId}
-                      className="w-48 flex-shrink-0 relative"
-                      style={{ height: `${timeSlots.length * SLOT_HEIGHT}px` }}
-                    >
-                      {blocks.map((block) => (
-                        <ScheduleBlock
-                          key={block.id}
-                          block={block}
-                          slotHeight={SLOT_HEIGHT}
-                          workStartHour={workStartHour}
-                          workEndHour={workEndHour}
-                          otherBlocks={blocks}
-                          onClick={handleBlockClick}
-                          onResize={handleBlockResize}
-                          onMove={handleBlockResize}
-                        />
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* 하단 안내 */}
       <div className="px-6 py-3 bg-[#282e33] border-t border-gray-700">
         <p className="text-sm text-gray-500">
-          빈 영역을 세로로 드래그하여 새 타임블록을 생성하세요
+          {viewMode === 'day'
+            ? '빈 영역을 세로로 드래그하여 새 타임블록을 생성하세요'
+            : '블록을 클릭하여 상세 정보를 확인하세요'
+          }
         </p>
       </div>
 

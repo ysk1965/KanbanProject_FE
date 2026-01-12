@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { GoogleLogin } from '@react-oauth/google';
-import { Button } from './ui/button';
-import { Mail, Lock, User, Users, ArrowRight } from 'lucide-react';
+import { Mail, Lock, User, Users, ArrowLeft, Github, Layers, Shield, Zap } from 'lucide-react';
 
 interface InviteInfo {
   boardName: string;
@@ -25,6 +26,7 @@ export function LoginPage({ onLogin, onSignup, onGoogleLogin, onBack, inviteInfo
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,118 +55,197 @@ export function LoginPage({ onLogin, onSignup, onGoogleLogin, onBack, inviteInfo
     return roleMap[role] || role;
   };
 
+  const handleBack = () => {
+    navigate('/');
+  };
+
   return (
-    <div className="min-h-screen bg-[#1d2125] flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* 초대 배너 */}
-        {inviteInfo && (
-          <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30 rounded-lg p-4 mb-6">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center">
-                <Users className="h-5 w-5 text-blue-400" />
+    <div className="min-h-screen flex bg-bridge-dark text-white">
+      {/* 왼쪽: 브랜드 섹션 (Desktop Only) */}
+      <div className="hidden lg:flex w-1/2 relative flex-col justify-center p-20 bg-gradient-to-br from-bridge-accent/20 to-bridge-obsidian overflow-hidden">
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20" />
+        <div className="relative z-10">
+          <div className="flex items-center gap-4 mb-12">
+            <div className="w-14 h-14 bg-bridge-accent rounded-xl flex items-center justify-center text-white font-serif font-bold text-2xl shadow-[0_0_25px_rgba(99,102,241,0.5)]">B</div>
+            <span className="font-serif font-bold text-4xl tracking-tight text-white">BRIDGE</span>
+          </div>
+          <p className="text-xl text-slate-400 leading-relaxed mb-12 font-light">
+            "복잡한 협업을 단순한 흐름으로.<br />
+            팀원들의 시간을 가장 가치 있게 연결합니다."
+          </p>
+          <div className="space-y-6">
+            {[
+              { icon: <Layers className="w-5 h-5" />, text: "Feature 중심의 명확한 구조" },
+              { icon: <Shield className="w-5 h-5" />, text: "역할 기반의 철저한 보안" },
+              { icon: <Zap className="w-5 h-5" />, text: "실시간 협업 및 일정 관리" },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center gap-4 text-slate-400">
+                <div className="p-2 bg-white/5 rounded-lg border border-white/10">{item.icon}</div>
+                <span className="font-light">{item.text}</span>
               </div>
-              <div>
-                <p className="text-sm text-blue-300">보드 초대</p>
-                <p className="text-white font-semibold">{inviteInfo.boardName}</p>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 오른쪽: 로그인 폼 */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 relative">
+        {/* 뒤로가기 버튼 */}
+        <button
+          onClick={handleBack}
+          className="absolute top-8 left-8 flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-medium"
+        >
+          <ArrowLeft size={18} />
+          <span>Back to Home</span>
+        </button>
+
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="w-full max-w-md space-y-6"
+        >
+          {/* 초대 배너 */}
+          {inviteInfo && (
+            <div className="bg-gradient-to-r from-bridge-accent/20 to-bridge-secondary/20 border border-bridge-accent/30 rounded-2xl p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 bg-bridge-accent/20 rounded-full flex items-center justify-center">
+                  <Users className="h-5 w-5 text-bridge-accent" />
+                </div>
+                <div>
+                  <p className="text-sm text-bridge-secondary">보드 초대</p>
+                  <p className="text-white font-semibold">{inviteInfo.boardName}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-slate-400">참여 역할:</span>
+                <span className="px-2 py-0.5 bg-bridge-accent/20 text-bridge-secondary rounded text-xs">
+                  {getRoleDisplay(inviteInfo.role)}
+                </span>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-gray-400">참여 역할:</span>
-              <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded text-xs">
-                {getRoleDisplay(inviteInfo.role)}
+          )}
+
+          {/* 헤더 */}
+          <div className="text-center">
+            <h3 className="text-4xl font-serif font-bold mb-3 tracking-tight">
+              {mode === 'login' ? 'Welcome Back' : 'Get Started'}
+            </h3>
+            <p className="text-slate-400 font-light">
+              {inviteInfo
+                ? '계정을 만들고 팀에 합류하세요'
+                : mode === 'login'
+                ? 'BRIDGE 계정으로 로그인을 진행해주세요'
+                : 'BRIDGE 계정을 생성해주세요'}
+            </p>
+          </div>
+
+          {/* 소셜 로그인 버튼 */}
+          <div className="space-y-3">
+            {onGoogleLogin ? (
+              <div className="w-full flex justify-center">
+                <GoogleLogin
+                  onSuccess={async (response) => {
+                    if (response.credential) {
+                      setIsGoogleLoading(true);
+                      setError('');
+                      try {
+                        await onGoogleLogin(response.credential);
+                      } catch (err: any) {
+                        setError(err.message || 'Google 로그인에 실패했습니다.');
+                      } finally {
+                        setIsGoogleLoading(false);
+                      }
+                    }
+                  }}
+                  onError={() => {
+                    setError('Google 로그인에 실패했습니다.');
+                  }}
+                  theme="filled_black"
+                  text="continue_with"
+                  locale="ko"
+                  width="400"
+                />
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="w-full py-3 px-4 bg-white text-bridge-dark rounded-xl font-medium flex items-center justify-center gap-3 hover:bg-slate-100 transition-all"
+                disabled
+              >
+                <img
+                  src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg"
+                  className="w-5 h-5"
+                  alt="google"
+                />
+                Google로 계속하기
+              </button>
+            )}
+            <button
+              type="button"
+              className="w-full py-3 px-4 bg-white/5 border border-white/10 text-white rounded-xl font-medium flex items-center justify-center gap-3 hover:bg-white/10 transition-all disabled:opacity-50"
+              disabled
+            >
+              <Github className="w-5 h-5" />
+              GitHub로 계속하기
+            </button>
+          </div>
+
+          {/* 구분선 */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-white/10"></div>
+            </div>
+            <div className="relative flex justify-center text-[10px] uppercase tracking-[0.3em] font-bold">
+              <span className="bg-bridge-dark px-4 text-slate-500">
+                또는 이메일로 {mode === 'login' ? '로그인' : '가입'}
               </span>
             </div>
-            <div className="mt-3 pt-3 border-t border-white/10">
-              <p className="text-sm text-gray-300 flex items-center gap-1">
-                <ArrowRight className="h-4 w-4 text-green-400" />
-                가입하면 바로 보드에 참여할 수 있습니다!
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* 로고 */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Team Kanban</h1>
-          <p className="text-gray-400">
-            {inviteInfo ? '계정을 만들고 팀에 합류하세요' : '팀 협업을 위한 칸반보드'}
-          </p>
-        </div>
-
-        {/* 로그인/회원가입 카드 */}
-        <div className="bg-[#282e33] rounded-lg shadow-xl p-8">
-          <div className="flex gap-2 mb-6">
-            <button
-              onClick={() => setMode('login')}
-              className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-                mode === 'login'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-[#3a4149] text-gray-400 hover:text-white'
-              }`}
-            >
-              로그인
-            </button>
-            <button
-              onClick={() => setMode('signup')}
-              className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-                mode === 'signup'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-[#3a4149] text-gray-400 hover:text-white'
-              }`}
-            >
-              회원가입
-            </button>
           </div>
 
+          {/* 이메일 폼 */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'signup' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  이름
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500" />
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">이름</label>
+                <div className="relative group">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-bridge-accent transition-colors" />
                   <input
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-[#1d2125] border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="홍길동"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-bridge-accent/50 focus:border-bridge-accent transition-all placeholder-slate-600"
                     required
                   />
                 </div>
               </div>
             )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                이메일
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500" />
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">이메일</label>
+              <div className="relative group">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-bridge-accent transition-colors" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-[#1d2125] border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="email@example.com"
+                  placeholder="name@company.com"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-bridge-accent/50 focus:border-bridge-accent transition-all placeholder-slate-600"
                   required
                 />
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                비밀번호
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500" />
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">비밀번호</label>
+              <div className="relative group">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-bridge-accent transition-colors" />
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-[#1d2125] border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="••••••••"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-bridge-accent/50 focus:border-bridge-accent transition-all placeholder-slate-600"
                   required
                   minLength={6}
                 />
@@ -172,124 +253,64 @@ export function LoginPage({ onLogin, onSignup, onGoogleLogin, onBack, inviteInfo
             </div>
 
             {error && (
-              <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-3 text-red-400 text-sm">
+              <div className="bg-red-500/10 border border-red-500/50 rounded-xl p-3 text-red-400 text-sm">
                 {error}
               </div>
             )}
 
-            <Button
+            <button
               type="submit"
-              className={`w-full text-white ${
+              disabled={isLoading || isGoogleLoading}
+              className={`w-full py-4 text-white rounded-xl font-bold shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                 inviteInfo && mode === 'signup'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700'
-                  : 'bg-blue-600 hover:bg-blue-700'
+                  ? 'bg-gradient-to-r from-bridge-accent to-bridge-secondary hover:shadow-[0_0_30px_rgba(99,102,241,0.4)]'
+                  : 'bg-bridge-accent hover:bg-bridge-accent/90 hover:shadow-[0_0_30px_rgba(99,102,241,0.3)]'
               }`}
-              disabled={isLoading}
             >
               {isLoading
                 ? '처리중...'
                 : mode === 'login'
-                ? (inviteInfo ? '로그인하고 보드 참여하기' : '로그인')
-                : (inviteInfo ? '가입하고 보드 참여하기' : '회원가입')}
-            </Button>
+                ? inviteInfo
+                  ? '로그인하고 보드 참여하기'
+                  : '로그인'
+                : inviteInfo
+                ? '가입하고 보드 참여하기'
+                : '회원가입'}
+            </button>
           </form>
 
-          {mode === 'login' && (
-            <div className="mt-4 text-center">
-              <button className="text-sm text-blue-400 hover:text-blue-300">
-                비밀번호를 잊으셨나요?
-              </button>
-            </div>
-          )}
-
-          {/* 소셜 로그인 (향후 구현) */}
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-700"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-[#282e33] text-gray-500">
-                  또는
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-2">
-              {onGoogleLogin ? (
-                <div className="flex justify-center">
-                  <GoogleLogin
-                    onSuccess={async (response) => {
-                      if (response.credential) {
-                        setIsGoogleLoading(true);
-                        setError('');
-                        try {
-                          await onGoogleLogin(response.credential);
-                        } catch (err: any) {
-                          setError(err.message || 'Google 로그인에 실패했습니다.');
-                        } finally {
-                          setIsGoogleLoading(false);
-                        }
-                      }
-                    }}
-                    onError={() => {
-                      setError('Google 로그인에 실패했습니다.');
-                    }}
-                    theme="filled_black"
-                    text="continue_with"
-                    locale="ko"
-                    width="100%"
-                  />
-                </div>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full border-gray-600 text-gray-300 hover:bg-[#3a4149] hover:text-white"
-                  disabled
+          {/* 모드 전환 */}
+          <p className="text-center text-slate-500 text-sm">
+            {mode === 'login' ? (
+              <>
+                아직 계정이 없으신가요?{' '}
+                <button
+                  onClick={() => setMode('signup')}
+                  className="text-bridge-secondary hover:underline font-medium"
                 >
-                  <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-                    <path
-                      fill="currentColor"
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                    />
-                    <path
-                      fill="currentColor"
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                    />
-                    <path
-                      fill="currentColor"
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                    />
-                    <path
-                      fill="currentColor"
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                    />
-                  </svg>
-                  Google로 계속하기
-                </Button>
-              )}
+                  회원가입
+                </button>
+              </>
+            ) : (
+              <>
+                이미 계정이 있으신가요?{' '}
+                <button
+                  onClick={() => setMode('login')}
+                  className="text-bridge-secondary hover:underline font-medium"
+                >
+                  로그인
+                </button>
+              </>
+            )}
+          </p>
 
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full border-gray-600 text-gray-300 hover:bg-[#3a4149] hover:text-white"
-                disabled
-              >
-                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
-                </svg>
-                GitHub로 계속하기
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 text-center text-sm text-gray-500">
-          {inviteInfo
-            ? '초대받은 보드에서 바로 협업을 시작하세요!'
-            : '7일 무료 체험 후 유료 전환됩니다.'}
-        </div>
+          {/* 하단 안내 */}
+          <p className="text-center text-[11px] text-slate-600 tracking-wide">
+            {inviteInfo
+              ? '초대받은 보드에서 바로 협업을 시작하세요!'
+              : '7일 무료 체험 후 유료 전환됩니다.'}
+          </p>
+        </motion.div>
       </div>
     </div>
   );

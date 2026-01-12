@@ -41,6 +41,8 @@ export interface Subscription {
 // 보드 관련 타입
 // ========================================
 
+export type BoardTier = 'TRIAL' | 'STANDARD' | 'PREMIUM';
+
 export interface BoardOwner {
   id: string;
   name: string;
@@ -65,9 +67,25 @@ export interface Board {
   is_starred: boolean;
   member_count: number;
   subscription: BoardSubscription;
+  tier?: BoardTier;
+  trial_ends_at?: string | null;
   selected_milestone_id?: string | null;
   created_at: string;
   updated_at?: string;
+}
+
+export interface BoardTierInfo {
+  tier: BoardTier;
+  trial_ends_at: string | null;
+  can_access_schedule: boolean;
+  can_access_milestone: boolean;
+  can_access_statistics: boolean;
+}
+
+export interface BoardLimits {
+  task_limit: number | null;
+  current_task_count: number;
+  can_create_task: boolean;
 }
 
 // ========================================
@@ -326,6 +344,18 @@ export interface PricingPlan {
   discount_percentage: number;
 }
 
+export interface SeatPricing {
+  price_per_seat: {
+    monthly: number;
+    yearly: number;
+  };
+  seat_count: number;
+  estimated_price: {
+    monthly: number;
+    yearly: number;
+  };
+}
+
 // ========================================
 // 필터 옵션 타입
 // ========================================
@@ -382,6 +412,7 @@ export const ERROR_CODES = {
   B001: '보드 없음',
   B002: '보드 접근 권한 없음',
   B003: '보드 정지 상태',
+  B004: 'Premium 기능 필요',
   // 블록
   BL001: '블록 없음',
   BL002: '고정 블록 삭제 불가',
@@ -391,6 +422,7 @@ export const ERROR_CODES = {
   // Task
   T001: 'Task 없음',
   T002: 'Task 이동 불가 블록',
+  T003: 'Task 제한 초과 (Standard 보드 10개 제한)',
   // 태그
   TG001: '태그 없음',
   TG002: '이미 존재하는 태그',
@@ -411,3 +443,247 @@ export const ERROR_CODES = {
   S003: '결제 필요',
   S004: '멤버 수 제한 초과',
 } as const;
+
+// ========================================
+// 통계 시스템 타입 (Statistics & Productivity)
+// ========================================
+
+/**
+ * 가중치 레벨 - 보드별로 커스텀 설정 가능
+ * 예: Low(0.5), Medium(1.0), High(1.5), Critical(2.0)
+ */
+export interface WeightLevel {
+  id: string;
+  name: string;
+  weight: number;
+  color: string;
+  position: number;
+  is_default?: boolean;
+}
+
+/**
+ * 보드의 가중치 설정
+ */
+export interface BoardWeightSettings {
+  board_id: string;
+  levels: WeightLevel[];
+  default_level_id: string;
+}
+
+/**
+ * Task에 적용된 가중치 정보
+ */
+export interface TaskWeight {
+  task_id: string;
+  weight_level_id: string;
+  weight_level?: WeightLevel;
+}
+
+/**
+ * 통계 필터 옵션
+ */
+export interface StatisticsFilter {
+  start_date: string | null;
+  end_date: string | null;
+  milestone_ids: string[];
+  feature_ids: string[];
+  member_ids: string[];
+  tag_ids: string[];
+}
+
+/**
+ * 시간 블록 통계 정보
+ */
+export interface TimeBlockStatistics {
+  total_minutes: number;
+  completed_minutes: number;
+  incomplete_minutes: number;
+  block_count: number;
+}
+
+/**
+ * 구성원별 통계
+ */
+export interface MemberStatistics {
+  member: {
+    id: string;
+    name: string;
+    profile_image: string | null;
+  };
+  total_minutes: number;
+  completed_minutes: number;
+  task_count: number;
+  completed_task_count: number;
+  impact_score: number;
+  by_feature: {
+    feature_id: string;
+    feature_title: string;
+    feature_color: string;
+    minutes: number;
+  }[];
+}
+
+/**
+ * Feature별 통계
+ */
+export interface FeatureStatistics {
+  feature: {
+    id: string;
+    title: string;
+    color: string;
+  };
+  total_minutes: number;
+  completed_minutes: number;
+  task_count: number;
+  completed_task_count: number;
+  progress_percentage: number;
+  by_member: {
+    member_id: string;
+    member_name: string;
+    minutes: number;
+  }[];
+}
+
+/**
+ * Milestone별 통계
+ */
+export interface MilestoneStatistics {
+  milestone: {
+    id: string;
+    title: string;
+    start_date: string;
+    end_date: string;
+  };
+  total_minutes: number;
+  completed_minutes: number;
+  feature_count: number;
+  completed_feature_count: number;
+  progress_percentage: number;
+  by_feature: FeatureStatistics[];
+}
+
+/**
+ * 태그별 통계
+ */
+export interface TagStatistics {
+  tag: {
+    id: string;
+    name: string;
+    color: string;
+  };
+  total_minutes: number;
+  task_count: number;
+}
+
+/**
+ * 임팩트 점수 통계
+ * Impact Score = Σ (Task 사용 시간 × Task Weight)
+ */
+export interface ImpactStatistics {
+  total_impact_score: number;
+  by_member: {
+    member_id: string;
+    member_name: string;
+    profile_image: string | null;
+    impact_score: number;
+    weighted_minutes: number;
+  }[];
+  by_weight_level: {
+    level: WeightLevel;
+    total_minutes: number;
+    task_count: number;
+  }[];
+}
+
+/**
+ * 요약 대시보드 KPI
+ */
+export interface StatisticsSummary {
+  // 시간 기반
+  total_work_minutes: number;
+  completed_work_minutes: number;
+  incomplete_work_minutes: number;
+
+  // 작업 기반
+  total_tasks: number;
+  completed_tasks: number;
+  incomplete_tasks: number;
+
+  // Feature 기반
+  total_features: number;
+  completed_features: number;
+  average_feature_progress: number;
+
+  // 집중도 (완료 시간 / 전체 시간)
+  focus_rate: number;
+
+  // 기간 정보
+  period_start: string;
+  period_end: string;
+}
+
+/**
+ * 전체 통계 응답
+ */
+export interface BoardStatistics {
+  summary: StatisticsSummary;
+  by_member: MemberStatistics[];
+  by_feature: FeatureStatistics[];
+  by_milestone: MilestoneStatistics[];
+  by_tag: TagStatistics[];
+  impact: ImpactStatistics;
+
+  // 일별 트렌드 (차트용)
+  daily_trend: {
+    date: string;
+    total_minutes: number;
+    completed_minutes: number;
+    task_completed_count: number;
+  }[];
+}
+
+/**
+ * 개인 통계 (Member용 - 본인 데이터만)
+ */
+export interface PersonalStatistics {
+  summary: {
+    total_work_minutes: number;
+    completed_work_minutes: number;
+    total_tasks: number;
+    completed_tasks: number;
+    impact_score: number;
+  };
+  by_feature: {
+    feature_id: string;
+    feature_title: string;
+    feature_color: string;
+    minutes: number;
+    task_count: number;
+  }[];
+  by_tag: {
+    tag_id: string;
+    tag_name: string;
+    tag_color: string;
+    minutes: number;
+  }[];
+  top_tasks: {
+    task_id: string;
+    task_title: string;
+    feature_title: string;
+    minutes: number;
+  }[];
+  daily_trend: {
+    date: string;
+    minutes: number;
+  }[];
+}
+
+/**
+ * 통계 뷰 타입
+ */
+export type StatisticsViewType =
+  | 'overview'    // 요약 대시보드
+  | 'individual'  // 개인 생산성
+  | 'team'        // 팀 생산성
+  | 'work'        // 작업 분석
+  | 'impact';     // 임팩트 분석
