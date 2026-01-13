@@ -234,19 +234,9 @@ export function KanbanCard({
           )}
         </div>
 
-        {/* 담당자 */}
+        {/* 담당자 - v7.0: ChecklistItem 담당자들만 표시 */}
         <div className="flex items-center gap-2">
-          {task.assignee ? (
-            <>
-              <div
-                className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white border border-white/20"
-                style={{ backgroundColor: cardColor }}
-              >
-                {task.assignee.name.charAt(0)}
-              </div>
-              <span className="text-[11px] font-medium text-zinc-400">{task.assignee.name}</span>
-            </>
-          ) : checklistAssignees.length > 0 ? (
+          {checklistAssignees.length > 0 ? (
             <div className="flex items-center gap-1">
               {checklistAssignees.slice(0, 3).map((assignee) => (
                 <div

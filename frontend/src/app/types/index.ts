@@ -194,7 +194,7 @@ export interface Task {
   block_name?: string;
   title: string;
   description?: string;
-  assignee: Assignee | null;
+  // v7.0: Task.assignee 제거 - ChecklistItem.assignee로 대체
   start_date: string | null;  // 시작일 (위클리 스케줄용)
   due_date: string | null;
   estimated_minutes: number | null;
@@ -237,6 +237,28 @@ export interface Milestone {
   features?: MilestoneFeatureInfo[];
   created_by?: { id: string; name: string };
   created_at?: string;
+  default_hours_per_day?: number;
+}
+
+// ========================================
+// 마일스톤 인원 할당 타입
+// ========================================
+
+export type MilestoneAllocationStatus = 'OVER' | 'UNDER' | 'NORMAL';
+
+export interface MilestoneAllocation {
+  id: string;
+  milestone_id: string;
+  member: {
+    id: string;
+    name: string;
+    profile_image: string | null;
+  };
+  working_days: number;
+  total_allocated_hours: number;
+  actual_worked_hours?: number;
+  difference?: number;
+  status?: MilestoneAllocationStatus;
 }
 
 // ========================================
@@ -697,3 +719,320 @@ export type StatisticsViewType =
   | 'team'        // 팀 생산성
   | 'work'        // 작업 분석
   | 'impact';     // 임팩트 분석
+
+// ==================== Management Dashboard Types ====================
+
+/**
+ * 마일스톤 헬스 상태
+ */
+export type MilestoneHealthStatus = 'ON_TRACK' | 'SLOW' | 'AT_RISK' | 'OVERDUE';
+
+/**
+ * 멤버 생산성 상태
+ */
+export type MemberProductivityStatus = 'NORMAL' | 'OVERWORKED' | 'RELAXED';
+
+/**
+ * 마일스톤 정보
+ */
+export interface MilestoneInfo {
+  id: string;
+  title: string;
+  description: string | null;
+  start_date: string;
+  end_date: string;
+}
+
+/**
+ * 속도 정보
+ */
+export interface VelocityInfo {
+  average_tasks_per_day: number;
+  tasks_remaining: number;
+  tasks_completed: number;
+  tasks_total: number;
+  required_velocity: number;
+  // 시간 기반 메트릭
+  estimated_total_minutes: number | null;
+  actual_total_minutes: number | null;
+  remaining_estimated_minutes: number | null;
+  average_minutes_per_day: number | null;
+  required_minutes_per_day: number | null;
+  time_efficiency: number | null; // 실제/예상 * 100
+}
+
+/**
+ * 번다운 차트 데이터 포인트
+ */
+export interface BurndownPoint {
+  date: string;
+  ideal_remaining: number;
+  actual_remaining: number;
+  // 시간 기반 번다운 (분 단위)
+  ideal_remaining_minutes: number | null;
+  actual_remaining_minutes: number | null;
+}
+
+/**
+ * Feature 요약
+ */
+export interface FeatureSummary {
+  total_features: number;
+  completed_features: number;
+  at_risk_features: number;
+}
+
+/**
+ * 마일스톤 내 Task 정보 (예상 시간 설정용)
+ * 담당자는 Task가 아닌 ChecklistItem들의 담당자 목록
+ */
+export interface MilestoneTask {
+  task_id: string;
+  task_title: string;
+  feature_id: string;
+  feature_title: string;
+  feature_color: string;
+  assignees: ManagementMemberInfo[]; // ChecklistItem 담당자들 (중복 제거)
+  current_block: string;
+  is_completed: boolean;
+  estimated_minutes: number | null;
+  actual_minutes: number | null;
+  start_date: string | null;
+  due_date: string | null;
+}
+
+/**
+ * 마일스톤 헬스
+ */
+export interface MilestoneHealth {
+  milestone: MilestoneInfo;
+  progress_percentage: number;
+  estimated_completion_date: string | null;
+  status: MilestoneHealthStatus;
+  days_remaining: number;
+  days_overdue: number;
+  velocity: VelocityInfo;
+  burndown: BurndownPoint[];
+  feature_summary: FeatureSummary;
+  tasks: MilestoneTask[];
+}
+
+/**
+ * 멤버 정보 (관리용)
+ */
+export interface ManagementMemberInfo {
+  id: string;
+  name: string;
+  profile_image: string | null;
+  role?: string;
+}
+
+/**
+ * 진행 중 Task 상세
+ */
+export interface InProgressTask {
+  task_id: string;
+  task_title: string;
+  feature_id: string;
+  feature_title: string;
+  feature_color: string;
+  current_block: string;
+  days_in_progress: number;
+  start_date: string | null;
+  due_date: string | null;
+  checklist_total: number;
+  checklist_completed: number;
+  // 시간 기반 메트릭
+  estimated_minutes: number | null;
+  actual_minutes: number | null;
+  time_efficiency: number | null;
+}
+
+/**
+ * 막힌 체크리스트 항목
+ */
+export interface StuckChecklistItem {
+  checklist_id: string;
+  checklist_title: string;
+  task_id: string;
+  task_title: string;
+  feature_title: string;
+  days_stuck: number;
+  created_at: string;
+}
+
+/**
+ * 최근 완료 Task
+ */
+export interface RecentCompletedTask {
+  task_id: string;
+  task_title: string;
+  feature_title: string;
+  completed_at: string;
+  days_to_complete: number;
+}
+
+/**
+ * 멤버 생산성
+ */
+export interface MemberProductivity {
+  member: ManagementMemberInfo;
+  assigned_tasks: number;
+  completed_tasks: number;
+  in_progress_tasks: number;
+  completion_rate: number;
+  total_checklists: number;
+  completed_checklists: number;
+  checklist_completion_rate: number;
+  status: MemberProductivityStatus;
+  in_progress_task_details: InProgressTask[];
+  stuck_checklists: StuckChecklistItem[];
+  recent_completed_tasks: RecentCompletedTask[];
+  // 시간 기반 메트릭
+  total_estimated_minutes: number | null;
+  total_actual_minutes: number | null;
+  time_efficiency: number | null;
+  average_minutes_per_day: number | null;
+  // ChecklistItem 담당자 기준 새 필드
+  assigned_task_details?: InProgressTask[];
+  all_checklist_details?: MemberChecklistInfo[];
+  in_progress_checklist_details?: MemberChecklistInfo[];
+}
+
+/**
+ * 멤버 체크리스트 정보 (모든 체크리스트 / 진행 중 체크리스트 표시용)
+ */
+export interface MemberChecklistInfo {
+  checklist_id: string;
+  checklist_title: string;
+  task_id: string;
+  task_title: string;
+  feature_id: string;
+  feature_title: string;
+  feature_color: string;
+  is_completed: boolean;
+  created_at: string | null;
+  completed_at: string | null;
+}
+
+/**
+ * 마감 초과 Feature
+ */
+export interface OverdueFeature {
+  feature_id: string;
+  feature_title: string;
+  feature_color: string;
+  due_date: string;
+  days_overdue: number;
+  assignee: ManagementMemberInfo | null;
+  progress_percentage: number;
+  tasks_remaining: number;
+}
+
+/**
+ * 정체 Task
+ */
+export interface StagnantTask {
+  task_id: string;
+  task_title: string;
+  feature_id: string;
+  feature_title: string;
+  feature_color: string;
+  current_block: string;
+  block_name: string;
+  days_in_block: number;
+  assignee: ManagementMemberInfo | null;
+  due_date: string | null;
+  is_overdue: boolean;
+}
+
+/**
+ * 막힌 체크리스트
+ */
+export interface StuckChecklist {
+  checklist_id: string;
+  checklist_title: string;
+  task_id: string;
+  task_title: string;
+  feature_id: string;
+  feature_title: string;
+  feature_color: string;
+  days_stuck: number;
+  assignee: ManagementMemberInfo | null;
+  due_date: string | null;
+}
+
+/**
+ * 멤버 병목
+ */
+export interface MemberBottleneck {
+  member: ManagementMemberInfo;
+  delayed_item_count: number;
+  overdue_tasks: number;
+  stuck_checklists: number;
+}
+
+/**
+ * 블록 병목
+ */
+export interface BlockBottleneck {
+  block_id: string;
+  block_name: string;
+  stuck_task_count: number;
+  average_days_stuck: number;
+}
+
+/**
+ * 병목 요약
+ */
+export interface BottleneckSummary {
+  most_delayed_member: MemberBottleneck | null;
+  most_problematic_block: BlockBottleneck | null;
+  total_overdue_features: number;
+  total_stagnant_tasks: number;
+  total_stuck_checklists: number;
+}
+
+/**
+ * 지연 항목
+ */
+export interface DelayedItems {
+  overdue_features: OverdueFeature[];
+  stagnant_tasks: StagnantTask[];
+  stuck_checklists: StuckChecklist[];
+  bottleneck_summary: BottleneckSummary;
+}
+
+/**
+ * 관리 요약
+ */
+export interface ManagementSummary {
+  total_milestones: number;
+  on_track_milestones: number;
+  at_risk_milestones: number;
+  overdue_milestones: number;
+  total_members: number;
+  members_on_track: number;
+  members_needing_attention: number;
+  total_delayed_items: number;
+  overall_health_score: number;
+}
+
+/**
+ * 관리 설정
+ */
+export interface ManagementSettings {
+  stagnant_task_days_threshold: number;
+  stuck_checklist_days_threshold: number;
+}
+
+/**
+ * 관리 통계 응답
+ */
+export interface ManagementStatistics {
+  milestone_health: MilestoneHealth[];
+  team_productivity: MemberProductivity[];
+  delayed_items: DelayedItems;
+  summary: ManagementSummary;
+  settings: ManagementSettings;
+}

@@ -1,6 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
-import { Star, Users, MoreHorizontal, ShieldCheck, Pencil, Trash2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Star, Users, MoreHorizontal, ShieldCheck } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { Board } from '../../types';
 
 // 보드 배경 그라데이션 색상
@@ -30,10 +29,7 @@ interface BoardCardProps {
   onEdit?: (board: Board) => void;
 }
 
-export function BoardCard({ board, onToggleStar, onClick, onDelete, onEdit }: BoardCardProps) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
+export function BoardCard({ board, onToggleStar, onClick, onEdit }: BoardCardProps) {
   const isTrial = board.subscription?.status === 'TRIAL';
   const taskCount = board.task_count ?? 0;
   const completedTasks = board.completed_tasks ?? 0;
@@ -41,17 +37,6 @@ export function BoardCard({ board, onToggleStar, onClick, onDelete, onEdit }: Bo
   const isOwner = board.role === 'OWNER';
   const canManage = board.role === 'OWNER' || board.role === 'ADMIN';
   const members = board.members ?? [];
-
-  // 외부 클릭 시 메뉴 닫기
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsMenuOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   return (
     <motion.div
@@ -81,61 +66,18 @@ export function BoardCard({ board, onToggleStar, onClick, onDelete, onEdit }: Bo
             />
           </button>
 
-          {/* More Menu */}
-          <div className="relative" ref={menuRef}>
+          {/* Edit Button - 바로 수정 모달 열기 */}
+          {canManage && onEdit && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                setIsMenuOpen(!isMenuOpen);
+                onEdit(board);
               }}
               className="p-1.5 bg-black/20 backdrop-blur-sm rounded-lg hover:bg-white/20 transition-colors"
             >
               <MoreHorizontal size={14} className="text-white" />
             </button>
-
-            <AnimatePresence>
-              {isMenuOpen && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95, y: -5 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: -5 }}
-                  className="absolute right-0 top-full mt-1 w-36 bg-bridge-obsidian border border-white/10 rounded-xl shadow-xl overflow-hidden z-50"
-                >
-                  {canManage && onEdit && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsMenuOpen(false);
-                        onEdit(board);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-slate-300 hover:bg-white/5 hover:text-white transition-colors"
-                    >
-                      <Pencil size={14} />
-                      수정
-                    </button>
-                  )}
-                  {isOwner && onDelete && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsMenuOpen(false);
-                        onDelete(board.id);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-rose-400 hover:bg-rose-500/10 transition-colors"
-                    >
-                      <Trash2 size={14} />
-                      삭제
-                    </button>
-                  )}
-                  {!canManage && (
-                    <div className="px-3 py-2.5 text-xs text-slate-500">
-                      권한이 없습니다
-                    </div>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+          )}
         </div>
 
         {isTrial && (

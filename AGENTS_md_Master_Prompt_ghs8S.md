@@ -19,7 +19,7 @@
 루트 파일은 다음 필수 섹션을 포함하여 작성합니다.
 
 -   **Project Context & Operations**
-    -   비즈니스 목표 및 Tech Stack 요약.
+    -   비즈니스 목표 및 Tech Stack 요약.Q
     -   **Operational Commands:** 프로젝트 빌드, 실행, 테스트를 위한 구체적 명령어 명시 (예: `npm run dev`, `npm test`).
 -   **Golden Rules**
     -   **Immutable:** 절대 타협할 수 없는 보안/아키텍처 제약.

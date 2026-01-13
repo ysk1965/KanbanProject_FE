@@ -356,6 +356,7 @@ export function Dashboard({
         board={editTarget}
         onClose={() => setEditTarget(null)}
         onUpdate={handleUpdateBoard}
+        onDelete={onDeleteBoard}
       />
 
       {/* Delete Confirm Modal */}

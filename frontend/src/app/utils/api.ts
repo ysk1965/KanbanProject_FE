@@ -358,7 +358,7 @@ export interface TaskResponse {
   block_name?: string;
   title: string;
   description?: string;
-  assignee: AssigneeResponse | null;
+  // v7.0: Task.assignee 제거 - ChecklistItem.assignee로 대체
   start_date: string | null;
   due_date: string | null;
   estimated_minutes: number | null;
@@ -768,7 +768,7 @@ export const taskAPI = {
     data: {
       title: string;
       description?: string;
-      assignee_id?: string;
+      // v7.0: assignee_id 제거 - ChecklistItem에서 담당자 설정
       start_date?: string;
       due_date?: string;
       estimated_minutes?: number;
@@ -786,7 +786,7 @@ export const taskAPI = {
     data: {
       title?: string;
       description?: string;
-      assignee_id?: string | null;
+      // v7.0: assignee_id 제거 - ChecklistItem에서 담당자 설정
       start_date?: string | null;
       due_date?: string | null;
       estimated_minutes?: number | null;
@@ -1219,6 +1219,12 @@ export const scheduleAPI = {
       data
     );
   },
+
+  getByChecklistItem: async (boardId: string, checklistItemId: string) => {
+    return apiClient.get<ScheduleBlockDetailResponse[]>(
+      `/boards/${boardId}/schedules/checklist-item/${checklistItemId}`
+    );
+  },
 };
 
 // ========================================
@@ -1248,6 +1254,22 @@ export const boardChecklistAPI = {
 // ========================================
 // Milestone API
 // ========================================
+
+// Milestone Allocation Response Types
+export interface MilestoneAllocationResponse {
+  id: string;
+  milestone_id: string;
+  member: {
+    id: string;
+    name: string;
+    profile_image: string | null;
+  };
+  working_days: number;
+  total_allocated_hours: number;
+  actual_worked_hours?: number;
+  difference?: number;
+  status?: 'OVER' | 'UNDER' | 'NORMAL';
+}
 
 export const milestoneAPI = {
   getMilestones: async (boardId: string) => {
@@ -1308,6 +1330,49 @@ export const milestoneAPI = {
   removeFeature: async (boardId: string, milestoneId: string, featureId: string) => {
     return apiClient.delete<{ message: string }>(
       `/boards/${boardId}/milestones/${milestoneId}/features/${featureId}`
+    );
+  },
+
+  // Milestone Allocation APIs
+  getAllocations: async (boardId: string, milestoneId: string) => {
+    return apiClient.get<{ allocations: MilestoneAllocationResponse[] }>(
+      `/boards/${boardId}/milestones/${milestoneId}/allocations`
+    );
+  },
+
+  createAllocation: async (
+    boardId: string,
+    milestoneId: string,
+    data: {
+      member_id: string;
+      working_days: number;
+      total_allocated_hours: number;
+    }
+  ) => {
+    return apiClient.post<MilestoneAllocationResponse>(
+      `/boards/${boardId}/milestones/${milestoneId}/allocations`,
+      data
+    );
+  },
+
+  updateAllocation: async (
+    boardId: string,
+    milestoneId: string,
+    allocationId: string,
+    data: {
+      working_days?: number;
+      total_allocated_hours?: number;
+    }
+  ) => {
+    return apiClient.put<MilestoneAllocationResponse>(
+      `/boards/${boardId}/milestones/${milestoneId}/allocations/${allocationId}`,
+      data
+    );
+  },
+
+  deleteAllocation: async (boardId: string, milestoneId: string, allocationId: string) => {
+    return apiClient.delete<{ message: string }>(
+      `/boards/${boardId}/milestones/${milestoneId}/allocations/${allocationId}`
     );
   },
 };
@@ -1432,6 +1497,165 @@ export interface BoardStatisticsResponse {
   daily_trend: DailyTrendResponse[];
 }
 
+// Management Statistics Response Types
+export interface ManagementStatisticsResponse {
+  milestone_health: MilestoneHealthResponse[];
+  team_productivity: MemberProductivityResponse[];
+  delayed_items: DelayedItemsResponse;
+  summary: ManagementSummaryResponse;
+  settings: ManagementSettingsResponse;
+}
+
+export interface MilestoneHealthResponse {
+  milestone: {
+    id: string;
+    title: string;
+    description: string | null;
+    start_date: string;
+    end_date: string;
+  };
+  progress_percentage: number;
+  estimated_completion_date: string | null;
+  status: 'ON_TRACK' | 'SLOW' | 'AT_RISK' | 'OVERDUE';
+  days_remaining: number;
+  days_overdue: number;
+  velocity: {
+    average_tasks_per_day: number;
+    tasks_remaining: number;
+    tasks_completed: number;
+    tasks_total: number;
+    required_velocity: number;
+  };
+  burndown: {
+    date: string;
+    ideal_remaining: number;
+    actual_remaining: number;
+  }[];
+  feature_summary: {
+    total_features: number;
+    completed_features: number;
+    at_risk_features: number;
+  };
+}
+
+export interface MemberProductivityResponse {
+  member: {
+    id: string;
+    name: string;
+    profile_image: string | null;
+    role?: string;
+  };
+  assigned_tasks: number;
+  completed_tasks: number;
+  in_progress_tasks: number;
+  completion_rate: number;
+  total_checklists: number;
+  completed_checklists: number;
+  checklist_completion_rate: number;
+  status: 'NORMAL' | 'NEEDS_ATTENTION' | 'COMPLETED';
+  in_progress_task_details: {
+    task_id: string;
+    task_title: string;
+    feature_id: string;
+    feature_title: string;
+    feature_color: string;
+    current_block: string;
+    days_in_progress: number;
+    start_date: string | null;
+    due_date: string | null;
+    checklist_total: number;
+    checklist_completed: number;
+  }[];
+  stuck_checklists: {
+    checklist_id: string;
+    checklist_title: string;
+    task_id: string;
+    task_title: string;
+    feature_title: string;
+    days_stuck: number;
+    created_at: string;
+  }[];
+  recent_completed_tasks: {
+    task_id: string;
+    task_title: string;
+    feature_title: string;
+    completed_at: string;
+    days_to_complete: number;
+  }[];
+}
+
+export interface DelayedItemsResponse {
+  overdue_features: {
+    feature_id: string;
+    feature_title: string;
+    feature_color: string;
+    due_date: string;
+    days_overdue: number;
+    assignee: { id: string; name: string; profile_image: string | null } | null;
+    progress_percentage: number;
+    tasks_remaining: number;
+  }[];
+  stagnant_tasks: {
+    task_id: string;
+    task_title: string;
+    feature_id: string;
+    feature_title: string;
+    feature_color: string;
+    current_block: string;
+    block_name: string;
+    days_in_block: number;
+    assignee: { id: string; name: string; profile_image: string | null } | null;
+    due_date: string | null;
+    is_overdue: boolean;
+  }[];
+  stuck_checklists: {
+    checklist_id: string;
+    checklist_title: string;
+    task_id: string;
+    task_title: string;
+    feature_id: string;
+    feature_title: string;
+    feature_color: string;
+    days_stuck: number;
+    assignee: { id: string; name: string; profile_image: string | null } | null;
+    due_date: string | null;
+  }[];
+  bottleneck_summary: {
+    most_delayed_member: {
+      member: { id: string; name: string; profile_image: string | null };
+      delayed_item_count: number;
+      overdue_tasks: number;
+      stuck_checklists: number;
+    } | null;
+    most_problematic_block: {
+      block_id: string;
+      block_name: string;
+      stuck_task_count: number;
+      average_days_stuck: number;
+    } | null;
+    total_overdue_features: number;
+    total_stagnant_tasks: number;
+    total_stuck_checklists: number;
+  };
+}
+
+export interface ManagementSummaryResponse {
+  total_milestones: number;
+  on_track_milestones: number;
+  at_risk_milestones: number;
+  overdue_milestones: number;
+  total_members: number;
+  members_on_track: number;
+  members_needing_attention: number;
+  total_delayed_items: number;
+  overall_health_score: number;
+}
+
+export interface ManagementSettingsResponse {
+  stagnant_task_days_threshold: number;
+  stuck_checklist_days_threshold: number;
+}
+
 export interface PersonalStatisticsResponse {
   summary: {
     total_work_minutes: number;
@@ -1529,6 +1753,29 @@ export const statisticsAPI = {
     const queryString = query.toString();
     return apiClient.get<PersonalStatisticsResponse>(
       `/boards/${boardId}/statistics/personal${queryString ? `?${queryString}` : ''}`
+    );
+  },
+
+  // 관리 대시보드 통계 조회
+  getManagementStatistics: async (
+    boardId: string,
+    params?: {
+      milestone_id?: string;
+      stagnant_task_days?: number;
+      stuck_checklist_days?: number;
+    }
+  ) => {
+    const query = new URLSearchParams();
+    if (params?.milestone_id) query.set('milestone_id', params.milestone_id);
+    if (params?.stagnant_task_days !== undefined) {
+      query.set('stagnant_task_days', params.stagnant_task_days.toString());
+    }
+    if (params?.stuck_checklist_days !== undefined) {
+      query.set('stuck_checklist_days', params.stuck_checklist_days.toString());
+    }
+    const queryString = query.toString();
+    return apiClient.get<ManagementStatisticsResponse>(
+      `/boards/${boardId}/statistics/management${queryString ? `?${queryString}` : ''}`
     );
   },
 

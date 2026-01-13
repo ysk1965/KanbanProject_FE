@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, Users, Settings, Filter, ArrowLeft, Bell, LayoutGrid, Calendar, CalendarDays, Flag, Pencil, Lock, BarChart3, Search, X, User, ChevronDown, CheckCircle2, Circle, Tag as TagIcon, Layers, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { Plus, Users, Settings, Filter, ArrowLeft, Bell, LayoutGrid, Calendar, CalendarDays, Flag, Pencil, Lock, BarChart3, Search, X, User, ChevronDown, CheckCircle2, Circle, Tag as TagIcon, Layers, ChevronsDownUp, ChevronsUpDown, Shield } from 'lucide-react';
 
 // 뷰 모드 타입
-type ViewMode = 'kanban' | 'weekly' | 'schedule' | 'statistics';
+type ViewMode = 'kanban' | 'weekly' | 'schedule' | 'statistics' | 'management';
 import { DragProvider } from '../contexts/DragContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Block, Feature, Task, Priority, Tag, Board, InviteLink, Subscription, PricingPlan, ActivityLog, Milestone, BoardTierInfo, BoardLimits } from '../types';
@@ -24,6 +24,7 @@ import { UserMenu } from '../components/UserMenu';
 import { DailyScheduleView } from '../components/DailyScheduleView';
 import { WeeklyScheduleView } from '../components/WeeklyScheduleView';
 import { StatisticsView } from '../components/StatisticsView';
+import { ManagementView } from '../components/ManagementView';
 import { Button } from '../components/ui/button';
 import {
   Popover,
@@ -98,6 +99,7 @@ export function KanbanBoardPage() {
   const [isFeatureModalOpen, setIsFeatureModalOpen] = useState(false);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [scheduleRefreshKey, setScheduleRefreshKey] = useState(0);
+  const [managementRefreshKey, setManagementRefreshKey] = useState(0);
   const [isAddBlockModalOpen, setIsAddBlockModalOpen] = useState(false);
   const [isAddFeatureModalOpen, setIsAddFeatureModalOpen] = useState(false);
   const [isShareBoardModalOpen, setIsShareBoardModalOpen] = useState(false);
@@ -1109,6 +1111,22 @@ export function KanbanBoardPage() {
                 {!canAccessStatistics && <Lock size={10} className="ml-0.5" />}
               </button>
             )}
+            {isAdminOrOwner && (
+              <button
+                onClick={() => handleViewModeChange('management')}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  viewMode === 'management'
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+                    : !canAccessStatistics
+                      ? 'text-zinc-600 hover:text-zinc-500 hover:bg-kanban-surface'
+                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-kanban-surface'
+                }`}
+              >
+                <Shield size={14} />
+                관리
+                {!canAccessStatistics && <Lock size={10} className="ml-0.5" />}
+              </button>
+            )}
           </nav>
 
           {/* 우측 액션 영역 */}
@@ -1669,6 +1687,29 @@ export function KanbanBoardPage() {
               }))}
             />
           </main>
+        ) : viewMode === 'management' ? (
+          <main className="flex-1 overflow-hidden">
+            <ManagementView
+              boardId={boardId || ''}
+              milestones={milestones}
+              members={boardMembersData.map(m => ({
+                id: m.id,
+                user: {
+                  id: m.userId,
+                  name: m.name,
+                  email: m.email,
+                  profile_image: null,
+                },
+                role: m.role === 'observer' ? 'VIEWER' : m.role.toUpperCase() as any,
+                joined_at: '',
+              }))}
+              onTaskClick={(taskId) => {
+                const task = tasks.find(t => t.id === taskId);
+                if (task) handleTaskClick(task);
+              }}
+              refreshTrigger={managementRefreshKey}
+            />
+          </main>
         ) : null}
 
         {/* 모달들 */}
@@ -1691,6 +1732,18 @@ export function KanbanBoardPage() {
           onClose={() => { setIsTaskModalOpen(false); setSelectedTask(null); }}
           onUpdate={(updates) => selectedTask && handleUpdateTask(selectedTask.id, updates)}
           onDelete={handleDeleteTask}
+          onMoveToDone={(taskId) => {
+            const doneBlock = blocks.find((b) => b.fixed_type === 'DONE');
+            if (doneBlock) {
+              handleMoveTask(taskId, doneBlock.id, 0);
+              setManagementRefreshKey((prev) => prev + 1);
+            }
+          }}
+          onMoveToBlock={(taskId, blockId) => {
+            handleMoveTask(taskId, blockId, 0);
+            setManagementRefreshKey((prev) => prev + 1);
+          }}
+          blocks={blocks}
           availableTags={tags}
           onCreateTag={handleCreateTag}
           boardMembers={boardMembersData}

@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { X, Clock, ChevronDown, Folder, FileText, Loader2, CheckSquare, Check, Layers } from 'lucide-react';
-import { Button } from './ui/button';
+import { X, Clock, ChevronDown, Folder, FileText, Loader2, CheckSquare, Layers } from 'lucide-react';
 import { featureAPI, taskAPI, checklistAPI, FeatureResponse, TaskResponse, ChecklistItemResponse } from '../utils/api';
 
 interface ChecklistCreateModalProps {
@@ -129,26 +128,26 @@ export function ChecklistCreateModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-2xl w-[560px] min-h-[700px] max-h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-bridge-obsidian rounded-2xl shadow-2xl w-[560px] min-h-[700px] max-h-[90vh] flex flex-col overflow-hidden border border-white/10">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-xl font-semibold text-gray-900">타임블록 추가</h2>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
+          <h2 className="text-lg font-bold text-white">타임블록 추가</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-slate-500 hover:text-white transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Time/Block Display */}
-        <div className="px-6 py-3 border-b border-gray-100">
-          <div className="bg-indigo-50 rounded-lg px-4 py-2 flex items-center gap-3">
+        <div className="px-6 py-3 border-b border-white/5">
+          <div className="bg-bridge-accent/20 rounded-xl px-4 py-2.5 flex items-center gap-3 border border-bridge-accent/30">
             {displayMode === 'block' ? (
               <>
-                <Layers className="h-4 w-4 text-indigo-600" />
-                <span className="text-indigo-700 font-medium text-sm">
+                <Layers className="h-4 w-4 text-bridge-accent" />
+                <span className="text-bridge-accent font-medium text-sm">
                   {startBlockIndex !== undefined && endBlockIndex !== undefined
                     ? startBlockIndex === endBlockIndex
                       ? `${startBlockIndex + 1}번 블록`
@@ -158,8 +157,8 @@ export function ChecklistCreateModal({
               </>
             ) : (
               <>
-                <Clock className="h-4 w-4 text-indigo-600" />
-                <span className="text-indigo-700 font-medium text-sm">
+                <Clock className="h-4 w-4 text-bridge-accent" />
+                <span className="text-bridge-accent font-medium text-sm">
                   {startTime} - {endTime}
                 </span>
               </>
@@ -168,21 +167,21 @@ export function ChecklistCreateModal({
         </div>
 
         {/* Form */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
           {/* Feature Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Folder className="inline h-4 w-4 mr-1 text-yellow-500" />
+            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+              <Folder className="inline h-4 w-4 mr-1 text-amber-500" />
               Feature
             </label>
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setIsFeatureDropdownOpen(!isFeatureDropdownOpen)}
-                className="w-full flex items-center justify-between px-4 py-3 border border-gray-200 rounded-lg text-left hover:border-gray-300 transition-colors"
+                className="w-full flex items-center justify-between px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-left hover:border-white/20 transition-colors"
               >
                 {isLoadingFeatures ? (
-                  <span className="text-gray-400 flex items-center gap-2">
+                  <span className="text-slate-500 flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Loading...
                   </span>
@@ -192,18 +191,18 @@ export function ChecklistCreateModal({
                       className="w-3 h-3 rounded-full"
                       style={{ backgroundColor: selectedFeature.color }}
                     />
-                    <span className="text-gray-900">{selectedFeature.title}</span>
+                    <span className="text-white">{selectedFeature.title}</span>
                   </div>
                 ) : (
-                  <span className="text-gray-400">Select a feature</span>
+                  <span className="text-slate-500">Select a feature</span>
                 )}
-                <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${isFeatureDropdownOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${isFeatureDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {isFeatureDropdownOpen && !isLoadingFeatures && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-72 overflow-y-auto">
+                <div className="absolute top-full left-0 right-0 mt-1 bg-bridge-obsidian border border-white/10 rounded-xl shadow-xl z-10 max-h-72 overflow-y-auto">
                   {features.length === 0 ? (
-                    <div className="px-4 py-3 text-gray-500 text-sm">No features found</div>
+                    <div className="px-4 py-3 text-slate-500 text-sm">No features found</div>
                   ) : (
                     features.map((feature) => (
                       <button
@@ -212,15 +211,15 @@ export function ChecklistCreateModal({
                           setSelectedFeatureId(feature.id);
                           setIsFeatureDropdownOpen(false);
                         }}
-                        className={`w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-gray-50 ${
-                          feature.id === selectedFeatureId ? 'bg-indigo-50' : ''
+                        className={`w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-white/5 transition-colors ${
+                          feature.id === selectedFeatureId ? 'bg-bridge-accent/20' : ''
                         }`}
                       >
                         <div
                           className="w-3 h-3 rounded-full"
                           style={{ backgroundColor: feature.color }}
                         />
-                        <span className="text-gray-900">{feature.title}</span>
+                        <span className="text-white">{feature.title}</span>
                       </button>
                     ))
                   )}
@@ -231,8 +230,8 @@ export function ChecklistCreateModal({
 
           {/* Task Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <FileText className="inline h-4 w-4 mr-1 text-blue-500" />
+            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+              <FileText className="inline h-4 w-4 mr-1 text-bridge-accent" />
               Task
             </label>
             <div className="relative">
@@ -240,29 +239,29 @@ export function ChecklistCreateModal({
                 type="button"
                 onClick={() => selectedFeatureId && setIsTaskDropdownOpen(!isTaskDropdownOpen)}
                 disabled={!selectedFeatureId}
-                className={`w-full flex items-center justify-between px-4 py-3 border border-gray-200 rounded-lg text-left transition-colors ${
-                  !selectedFeatureId ? 'bg-gray-50 cursor-not-allowed' : 'hover:border-gray-300'
+                className={`w-full flex items-center justify-between px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-left transition-colors ${
+                  !selectedFeatureId ? 'opacity-50 cursor-not-allowed' : 'hover:border-white/20'
                 }`}
               >
                 {isLoadingTasks ? (
-                  <span className="text-gray-400 flex items-center gap-2">
+                  <span className="text-slate-500 flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Loading...
                   </span>
                 ) : selectedTask ? (
-                  <span className="text-gray-900">{selectedTask.title}</span>
+                  <span className="text-white">{selectedTask.title}</span>
                 ) : (
-                  <span className="text-gray-400">
+                  <span className="text-slate-500">
                     {selectedFeatureId ? 'Select a task' : 'Select a feature first'}
                   </span>
                 )}
-                <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${isTaskDropdownOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${isTaskDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {isTaskDropdownOpen && !isLoadingTasks && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-72 overflow-y-auto">
+                <div className="absolute top-full left-0 right-0 mt-1 bg-bridge-obsidian border border-white/10 rounded-xl shadow-xl z-10 max-h-72 overflow-y-auto">
                   {tasks.length === 0 ? (
-                    <div className="px-4 py-3 text-gray-500 text-sm">No tasks found</div>
+                    <div className="px-4 py-3 text-slate-500 text-sm">No tasks found</div>
                   ) : (
                     tasks.map((task) => (
                       <button
@@ -271,11 +270,11 @@ export function ChecklistCreateModal({
                           setSelectedTaskId(task.id);
                           setIsTaskDropdownOpen(false);
                         }}
-                        className={`w-full px-4 py-3 text-left hover:bg-gray-50 ${
-                          task.id === selectedTaskId ? 'bg-indigo-50' : ''
+                        className={`w-full px-4 py-3 text-left hover:bg-white/5 transition-colors ${
+                          task.id === selectedTaskId ? 'bg-bridge-accent/20' : ''
                         }`}
                       >
-                        <span className="text-gray-900">{task.title}</span>
+                        <span className="text-white">{task.title}</span>
                       </button>
                     ))
                   )}
@@ -288,35 +287,35 @@ export function ChecklistCreateModal({
           {selectedTaskId && (
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  <CheckSquare className="inline h-4 w-4 mr-1 text-purple-500" />
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                  <CheckSquare className="inline h-4 w-4 mr-1 text-purple-400" />
                   기존 체크리스트에서 선택
                 </label>
                 {checklistItems.filter(i => !i.completed).length > 0 && (
-                  <span className="text-xs text-gray-400">클릭하여 선택</span>
+                  <span className="text-xs text-slate-500">클릭하여 선택</span>
                 )}
               </div>
-              <div className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
+              <div className="border border-white/10 rounded-xl max-h-48 overflow-y-auto bg-white/5">
                 {isLoadingChecklist ? (
-                  <div className="px-4 py-3 text-gray-400 flex items-center gap-2">
+                  <div className="px-4 py-3 text-slate-500 flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Loading...
                   </div>
                 ) : checklistItems.filter(i => !i.completed).length === 0 ? (
-                  <div className="px-4 py-3 text-gray-500 text-sm text-center">
+                  <div className="px-4 py-3 text-slate-500 text-sm text-center">
                     선택 가능한 체크리스트가 없습니다
                   </div>
                 ) : (
-                  <div className="divide-y divide-gray-100">
+                  <div className="divide-y divide-white/5">
                     {checklistItems.filter(i => !i.completed).map((item) => (
                       <button
                         key={item.id}
                         onClick={() => onSelectExisting(item.id)}
-                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-indigo-50 transition-colors text-left"
+                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-bridge-accent/10 transition-colors text-left"
                       >
-                        <div className="w-4 h-4 rounded border border-gray-300 flex-shrink-0" />
-                        <span className="text-sm text-gray-700 flex-1">{item.title}</span>
-                        <span className="text-xs text-indigo-500">선택</span>
+                        <div className="w-4 h-4 rounded border border-white/20 flex-shrink-0" />
+                        <span className="text-sm text-slate-300 flex-1">{item.title}</span>
+                        <span className="text-xs text-bridge-accent font-medium">선택</span>
                       </button>
                     ))}
                   </div>
@@ -328,15 +327,15 @@ export function ChecklistCreateModal({
           {/* 구분선 */}
           {selectedTaskId && checklistItems.filter(i => !i.completed).length > 0 && (
             <div className="flex items-center gap-3">
-              <div className="flex-1 border-t border-gray-200" />
-              <span className="text-xs text-gray-400">또는 새로 생성</span>
-              <div className="flex-1 border-t border-gray-200" />
+              <div className="flex-1 border-t border-white/10" />
+              <span className="text-xs text-slate-500">또는 새로 생성</span>
+              <div className="flex-1 border-t border-white/10" />
             </div>
           )}
 
           {/* 새 체크리스트 생성 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
               새 체크리스트 항목
             </label>
             <input
@@ -344,34 +343,33 @@ export function ChecklistCreateModal({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="새 체크리스트 제목 입력"
-              className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-bridge-accent/50 focus:border-bridge-accent transition-all"
             />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
-          <Button
-            variant="outline"
+        <div className="px-6 py-4 border-t border-white/5 flex gap-3">
+          <button
             onClick={onClose}
-            className="flex-1"
+            className="flex-1 py-3 text-sm font-bold text-slate-400 hover:text-white transition-colors border border-white/10 rounded-xl hover:bg-white/5"
           >
-            Cancel
-          </Button>
-          <Button
+            취소
+          </button>
+          <button
             onClick={handleSubmit}
             disabled={!canSubmit || isSubmitting}
-            className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white"
+            className="flex-1 py-3 bg-gradient-to-r from-bridge-accent to-purple-500 text-sm font-bold text-white rounded-xl shadow-lg shadow-bridge-accent/20 disabled:opacity-50 disabled:grayscale hover:shadow-bridge-accent/40 transition-all flex items-center justify-center gap-2"
           >
             {isSubmitting ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Creating...
+                <Loader2 className="h-4 w-4 animate-spin" />
+                생성 중...
               </>
             ) : (
-              'Create'
+              '생성'
             )}
-          </Button>
+          </button>
         </div>
       </div>
     </div>

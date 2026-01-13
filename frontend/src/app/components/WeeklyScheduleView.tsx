@@ -780,11 +780,7 @@ export function WeeklyScheduleView({
                         >
                           {task.title}
                         </span>
-                        {task.assignee && (
-                          <span className="text-xs text-zinc-500 flex-shrink-0">
-                            @{task.assignee.name}
-                          </span>
-                        )}
+                        {/* v7.0: Task.assignee 제거 - ChecklistItem에서 담당자 확인 */}
                       </div>
                     ))}
                 </div>

@@ -48,6 +48,8 @@ import type {
   BoardWeightSettings,
   WeightLevel,
   StatisticsFilter,
+  ManagementStatistics,
+  MilestoneAllocation,
 } from '../types';
 
 // API 호출 실패 시 목업 데이터 사용
@@ -1415,6 +1417,69 @@ export const milestoneService = {
       throw error;
     }
   },
+
+  // Milestone Allocation methods
+  getAllocations: async (boardId: string, milestoneId: string): Promise<MilestoneAllocation[]> => {
+    try {
+      const response = await milestoneAPI.getAllocations(boardId, milestoneId);
+      return response.allocations;
+    } catch (error) {
+      console.warn('API failed, returning empty allocations', error);
+      if (USE_MOCK_ON_ERROR) {
+        return [];
+      }
+      throw error;
+    }
+  },
+
+  createAllocation: async (
+    boardId: string,
+    milestoneId: string,
+    data: {
+      member_id: string;
+      working_days: number;
+      total_allocated_hours: number;
+    }
+  ): Promise<MilestoneAllocation> => {
+    try {
+      const allocation = await milestoneAPI.createAllocation(boardId, milestoneId, data);
+      return allocation;
+    } catch (error) {
+      console.warn('API failed for createAllocation', error);
+      throw error;
+    }
+  },
+
+  updateAllocation: async (
+    boardId: string,
+    milestoneId: string,
+    allocationId: string,
+    data: {
+      working_days?: number;
+      total_allocated_hours?: number;
+    }
+  ): Promise<MilestoneAllocation> => {
+    try {
+      const allocation = await milestoneAPI.updateAllocation(boardId, milestoneId, allocationId, data);
+      return allocation;
+    } catch (error) {
+      console.warn('API failed for updateAllocation', error);
+      throw error;
+    }
+  },
+
+  deleteAllocation: async (
+    boardId: string,
+    milestoneId: string,
+    allocationId: string
+  ): Promise<void> => {
+    try {
+      await milestoneAPI.deleteAllocation(boardId, milestoneId, allocationId);
+    } catch (error) {
+      console.warn('API failed for deleteAllocation', error);
+      throw error;
+    }
+  },
 };
 
 // ========================================
@@ -1604,6 +1669,71 @@ export const statisticsService = {
       console.warn('API failed, returning null weight level', error);
       if (USE_MOCK_ON_ERROR) {
         return { task_id: taskId, weight_level: null };
+      }
+      throw error;
+    }
+  },
+};
+
+// ========================================
+// Management Service (관리 대시보드)
+// ========================================
+
+export interface ManagementFilter {
+  milestone_id?: string;
+  stagnant_task_days?: number;
+  stuck_checklist_days?: number;
+}
+
+const EMPTY_MANAGEMENT_STATISTICS: ManagementStatistics = {
+  milestone_health: [],
+  team_productivity: [],
+  delayed_items: {
+    overdue_features: [],
+    stagnant_tasks: [],
+    stuck_checklists: [],
+    bottleneck_summary: {
+      most_delayed_member: null,
+      most_problematic_block: null,
+      total_overdue_features: 0,
+      total_stagnant_tasks: 0,
+      total_stuck_checklists: 0,
+    },
+  },
+  summary: {
+    total_milestones: 0,
+    on_track_milestones: 0,
+    at_risk_milestones: 0,
+    overdue_milestones: 0,
+    total_members: 0,
+    members_on_track: 0,
+    members_needing_attention: 0,
+    total_delayed_items: 0,
+    overall_health_score: 100,
+  },
+  settings: {
+    stagnant_task_days_threshold: 3,
+    stuck_checklist_days_threshold: 2,
+  },
+};
+
+export const managementService = {
+  // 관리 대시보드 통계 조회
+  getManagementStatistics: async (
+    boardId: string,
+    filter?: ManagementFilter
+  ): Promise<ManagementStatistics> => {
+    try {
+      const response = await statisticsAPI.getManagementStatistics(boardId, {
+        milestone_id: filter?.milestone_id,
+        stagnant_task_days: filter?.stagnant_task_days,
+        stuck_checklist_days: filter?.stuck_checklist_days,
+      });
+      return response as ManagementStatistics;
+    } catch (error) {
+      console.warn('API failed, using empty management statistics', error);
+      if (USE_MOCK_ON_ERROR) {
+        return EMPTY_MANAGEMENT_STATISTICS;
       }
       throw error;
     }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Check } from 'lucide-react';
+import { X, AlertTriangle, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Board } from '../../types';
 
@@ -26,11 +26,14 @@ interface EditBoardModalProps {
   board: Board | null;
   onClose: () => void;
   onUpdate: (boardId: string, name: string, description?: string) => void;
+  onDelete?: (boardId: string) => void;
 }
 
-export function EditBoardModal({ isOpen, board, onClose, onUpdate }: EditBoardModalProps) {
+export function EditBoardModal({ isOpen, board, onClose, onUpdate, onDelete }: EditBoardModalProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   // 보드 데이터로 초기화
   useEffect(() => {
@@ -43,6 +46,8 @@ export function EditBoardModal({ isOpen, board, onClose, onUpdate }: EditBoardMo
   const handleClose = () => {
     setName('');
     setDescription('');
+    setShowDeleteConfirm(false);
+    setDeleteConfirmText('');
     onClose();
   };
 
@@ -53,7 +58,18 @@ export function EditBoardModal({ isOpen, board, onClose, onUpdate }: EditBoardMo
     }
   };
 
+  const handleDelete = () => {
+    if (board && onDelete && deleteConfirmText === board.name) {
+      onDelete(board.id);
+      handleClose();
+    }
+  };
+
   if (!isOpen || !board) return null;
+
+  const isOwner = board.role === 'OWNER';
+  const isPremium = board.subscription?.status === 'ACTIVE';
+  const canDelete = isOwner && onDelete;
 
   const gradient = getGradient(board.id);
 
@@ -140,6 +156,85 @@ export function EditBoardModal({ isOpen, board, onClose, onUpdate }: EditBoardMo
                 저장
               </button>
             </div>
+
+            {/* Delete Section - Owner Only */}
+            {canDelete && (
+              <div className="mt-6 pt-6 border-t border-white/5">
+                {!showDeleteConfirm ? (
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="w-full flex items-center justify-center gap-2 py-3 text-sm font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl transition-colors"
+                  >
+                    <Trash2 size={16} />
+                    보드 삭제
+                  </button>
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="space-y-4"
+                  >
+                    {/* Warning Box */}
+                    <div className={`p-4 rounded-xl border ${isPremium ? 'bg-rose-500/10 border-rose-500/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle size={20} className={isPremium ? 'text-rose-500 shrink-0 mt-0.5' : 'text-amber-500 shrink-0 mt-0.5'} />
+                        <div className="space-y-2">
+                          <p className={`text-sm font-bold ${isPremium ? 'text-rose-400' : 'text-amber-400'}`}>
+                            {isPremium ? '⚠️ 프리미엄 구독 중인 보드입니다!' : '⚠️ 주의: 이 작업은 되돌릴 수 없습니다'}
+                          </p>
+                          <ul className="text-xs text-slate-400 space-y-1">
+                            <li>• 모든 Feature와 Task가 영구 삭제됩니다</li>
+                            <li>• 멤버 데이터 및 활동 기록이 삭제됩니다</li>
+                            <li>• 스케줄 및 체크리스트가 삭제됩니다</li>
+                            {isPremium && (
+                              <>
+                                <li className="text-rose-400 font-bold">• 구독이 즉시 취소되며 환불되지 않습니다</li>
+                                <li className="text-rose-400 font-bold">• 결제 정보 및 구독 혜택이 사라집니다</li>
+                              </>
+                            )}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Confirm Input */}
+                    <div className="space-y-2">
+                      <label className="text-xs text-slate-400">
+                        삭제하려면 보드 이름 <span className="font-bold text-white">"{board.name}"</span>을 입력하세요
+                      </label>
+                      <input
+                        type="text"
+                        value={deleteConfirmText}
+                        onChange={(e) => setDeleteConfirmText(e.target.value)}
+                        placeholder={board.name}
+                        className="w-full bg-white/5 border border-rose-500/30 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 transition-all"
+                      />
+                    </div>
+
+                    {/* Delete Actions */}
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          setShowDeleteConfirm(false);
+                          setDeleteConfirmText('');
+                        }}
+                        className="flex-1 py-3 text-sm font-bold text-slate-400 hover:text-white transition-colors border border-white/10 rounded-xl hover:bg-white/5"
+                      >
+                        취소
+                      </button>
+                      <button
+                        disabled={deleteConfirmText !== board.name}
+                        onClick={handleDelete}
+                        className="flex-1 py-3 bg-rose-600 text-sm font-bold rounded-xl disabled:opacity-30 disabled:cursor-not-allowed hover:bg-rose-500 transition-all flex items-center justify-center gap-2"
+                      >
+                        <Trash2 size={16} />
+                        영구 삭제
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+            )}
           </div>
         </motion.div>
       </div>

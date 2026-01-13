@@ -1,8 +1,14 @@
+
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+*/
+
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Columns, Calendar, Clock, CheckCircle2, TrendingDown, Users2, ShieldAlert } from 'lucide-react';
 
-// --- RESOURCE PULSE DIAGRAM (PM Dashboard View) ---
+// --- RESOURCE PULSE DIAGRAM (New PM Dashboard View) ---
 export const ResourcePulseDiagram: React.FC = () => {
   const team = [
     { name: 'Alice (Dev)', load: 85, status: 'Overheat', color: 'text-red-400' },
@@ -39,7 +45,7 @@ export const ResourcePulseDiagram: React.FC = () => {
                 whileInView={{ width: `${member.load}%` }}
                 transition={{ duration: 1.5, delay: i * 0.2, ease: "circOut" }}
                 className={`h-full rounded-full ${
-                  member.status === 'Overheat' ? 'bg-red-400 shadow-[0_0_15px_rgba(248,113,113,0.3)]' :
+                  member.status === 'Overheat' ? 'bg-red-400 shadow-[0_0_15px_rgba(248,113,113,0.3)]' : 
                   member.status === 'Normal' ? 'bg-indigo-400' : 'bg-bridge-secondary shadow-[0_0_15px_rgba(45,212,191,0.3)]'
                 }`}
               />
@@ -83,7 +89,7 @@ export const PriceComparisonDiagram: React.FC = () => {
         {[
           { name: 'Flow.team', cost: 72, color: 'bg-slate-700' },
           { name: 'Trello Premium', cost: 60, color: 'bg-slate-600' },
-          { name: 'BridgeSpots Premium', cost: 50, color: 'bg-bridge-secondary', highlight: true },
+          { name: 'bridgespots Premium', cost: 50, color: 'bg-bridge-secondary', highlight: true },
         ].map((item, i) => (
           <div key={i} className="space-y-3">
             <div className="flex justify-between text-[11px] font-extrabold uppercase tracking-[0.15em]">
@@ -101,7 +107,7 @@ export const PriceComparisonDiagram: React.FC = () => {
           </div>
         ))}
       </div>
-
+      
       <div className="mt-12 p-6 bg-bridge-secondary/5 rounded-2xl border border-bridge-secondary/10 text-center">
         <p className="text-sm text-bridge-secondary font-semibold font-jakarta italic">"Market disruption: Zero cost for core kanban features."</p>
       </div>
@@ -135,7 +141,7 @@ export const KanbanDiagram: React.FC = () => {
         <Columns size={22} className="text-bridge-accent" />
         Core Orchestration Flow
       </h3>
-
+      
       <div className="grid grid-cols-4 gap-3 w-full">
         {['Task', 'In Progress', 'Review', 'Done'].map(status => (
           <div key={status} className={`flex flex-col gap-3 min-h-[180px] p-3 rounded-2xl border transition-all ${
@@ -191,7 +197,7 @@ export const GanttDiagram: React.FC = () => {
         ].map((item, i) => (
           <div key={i} className="grid grid-cols-8 gap-1.5 items-center">
             <div className={`col-span-2 text-[11px] ${item.type === 'task' ? 'pl-4 text-stone-500 font-medium' : 'font-bold text-stone-300'}`}>
-              {item.type === 'task' ? '- ' : '* '}{item.name}
+              {item.type === 'task' ? '— ' : '● '}{item.name}
             </div>
             <div className="col-span-6 h-6 relative bg-white/5 rounded-full overflow-hidden">
               <motion.div
@@ -205,54 +211,6 @@ export const GanttDiagram: React.FC = () => {
             </div>
           </div>
         ))}
-      </div>
-    </div>
-  );
-};
-
-// --- DAILY SCHEDULE DIAGRAM ---
-export const DailyScheduleDiagram: React.FC = () => {
-  return (
-    <div className="flex flex-col p-8 bg-bridge-obsidian rounded-[2.5rem] border border-white/10 shadow-2xl w-full max-w-md mx-auto font-inter">
-      <h3 className="font-jakarta font-bold text-xl mb-6 text-white flex items-center gap-3 tracking-tight">
-        <Clock size={20} className="text-bridge-secondary" />
-        Daily Temporal Flow
-      </h3>
-
-      <div className="flex gap-6">
-        <div className="flex flex-col gap-10 text-[9px] text-stone-700 font-bold py-2 tracking-widest">
-          <span>09:00</span>
-          <span>10:30</span>
-          <span>12:00</span>
-        </div>
-        <div className="flex-1 space-y-3">
-          <motion.div
-            initial={{ x: 20, opacity: 0 }}
-            whileInView={{ x: 0, opacity: 1 }}
-            className="h-16 bg-indigo-500/10 border-l-2 border-indigo-500 p-3 rounded-r-lg flex flex-col justify-center"
-          >
-            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">Logic Alignment</span>
-            <span className="text-[9px] text-indigo-300/60 font-mono">09:00 - 10:15</span>
-          </motion.div>
-          <motion.div
-            initial={{ x: 20, opacity: 0 }}
-            whileInView={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.1 }}
-            className="h-12 bg-white/5 border-l-2 border-stone-700 p-3 rounded-r-lg flex flex-col justify-center"
-          >
-            <span className="text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1">Focused Build</span>
-            <span className="text-[9px] text-stone-600 font-mono">10:15 - 11:30</span>
-          </motion.div>
-          <motion.div
-            initial={{ x: 20, opacity: 0 }}
-            whileInView={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="h-12 bg-bridge-secondary/10 border-l-2 border-bridge-secondary p-3 rounded-r-lg flex flex-col justify-center"
-          >
-            <span className="text-[10px] font-bold text-bridge-secondary uppercase tracking-widest mb-1">Unified Review</span>
-            <span className="text-[9px] text-bridge-secondary/60 font-mono">11:30 - 12:30</span>
-          </motion.div>
-        </div>
       </div>
     </div>
   );
