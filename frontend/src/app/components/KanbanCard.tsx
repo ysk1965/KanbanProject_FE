@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useDrag } from 'react-dnd';
 import { Task, DragItem, Tag, ChecklistItem } from '../types';
-import { GripVertical, ChevronDown, ChevronUp, CheckSquare } from 'lucide-react';
-import { Badge } from './ui/badge';
+import { GripVertical, ChevronDown, ChevronUp, CheckSquare, Calendar } from 'lucide-react';
 import { checklistAPI } from '../utils/api';
 
 interface KanbanCardProps {
@@ -11,9 +10,19 @@ interface KanbanCardProps {
   onClick?: () => void;
   availableTags?: Tag[];
   boardId?: string | null;
+  featureColor?: string;
+  featureTitle?: string;
 }
 
-export function KanbanCard({ task, blockId, onClick, availableTags = [], boardId }: KanbanCardProps) {
+export function KanbanCard({
+  task,
+  blockId,
+  onClick,
+  availableTags = [],
+  boardId,
+  featureColor,
+  featureTitle,
+}: KanbanCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -29,6 +38,20 @@ export function KanbanCard({ task, blockId, onClick, availableTags = [], boardId
 
   const taskTags = availableTags.filter((tag) => task.tags?.includes(tag.id));
   const hasChecklist = (task.checklist_total ?? 0) > 0;
+  const completedChecklistItems = task.checklist_completed ?? 0;
+  const cardColor = featureColor || '#6366F1';
+
+  // Task 이름만 추출 (Feature이름 - Task이름 형식인 경우)
+  const getTaskOnlyTitle = (title: string) => {
+    if (featureTitle && title.includes(' - ')) {
+      const parts = title.split(' - ');
+      if (parts.length > 1) {
+        return parts.slice(1).join(' - '); // Feature이름 이후 부분만 반환
+      }
+    }
+    return title;
+  };
+  const displayTitle = getTaskOnlyTitle(task.title);
 
   // 체크리스트 로드
   const loadChecklist = async () => {
@@ -45,7 +68,9 @@ export function KanbanCard({ task, blockId, onClick, availableTags = [], boardId
         due_date: item.due_date,
         start_date: item.start_date,
         done_date: item.done_date,
-        assignee: item.assignee ? { id: item.assignee.id, name: item.assignee.name, profile_image: item.assignee.profile_image } : null,
+        assignee: item.assignee
+          ? { id: item.assignee.id, name: item.assignee.name, profile_image: item.assignee.profile_image }
+          : null,
       }));
       setChecklistItems(items);
       setHasLoaded(true);
@@ -56,7 +81,7 @@ export function KanbanCard({ task, blockId, onClick, availableTags = [], boardId
     }
   };
 
-  // 체크리스트가 있으면 자동 로드 (담당자 표시를 위해)
+  // 체크리스트가 있으면 자동 로드
   useEffect(() => {
     if (hasChecklist && boardId && !hasLoaded) {
       loadChecklist();
@@ -97,7 +122,6 @@ export function KanbanCard({ task, blockId, onClick, availableTags = [], boardId
       await checklistAPI.toggleItem(boardId, task.id, itemId);
     } catch (error) {
       console.error('Failed to toggle checklist item:', error);
-      // 롤백
       setChecklistItems(
         checklistItems.map((item) =>
           item.id === itemId ? { ...item, completed: !item.completed } : item
@@ -111,128 +135,195 @@ export function KanbanCard({ task, blockId, onClick, availableTags = [], boardId
   return (
     <div
       ref={drag}
-      className={`bg-white rounded-lg p-3 border shadow-sm cursor-pointer hover:shadow-md transition-shadow ${
-        isDragging ? 'opacity-50' : ''
-      } ${task.isCompleted ? 'border-green-300 bg-green-50' : 'border-gray-200'}`}
+      className={`group relative bg-kanban-card-hover rounded-2xl border border-kanban-border p-5 hover:border-indigo-500/50 hover:shadow-2xl hover:shadow-indigo-500/10 transition-all cursor-pointer overflow-hidden kanban-glow ${
+        isDragging ? 'opacity-50 scale-95' : ''
+      } ${task.completed ? 'border-green-500/30' : ''}`}
       onClick={onClick}
     >
-      <div className="flex items-start gap-2">
-        <GripVertical className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-900 break-words">
-            {task.title}
-          </p>
-          
-          {/* 태그 표시 */}
-          {taskTags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-2">
-              {taskTags.map((tag) => (
-                <Badge
-                  key={tag.id}
-                  style={{ backgroundColor: tag.color }}
-                  className="text-white text-xs px-2 py-0"
-                >
-                  {tag.name}
-                </Badge>
-              ))}
-            </div>
-          )}
+      {/* 좌측 컬러 바 */}
+      <div
+        className="absolute top-0 left-0 bottom-0 w-1.5"
+        style={{ backgroundColor: task.completed ? '#22c55e' : cardColor }}
+      />
 
-          {/* 체크리스트 담당자들 */}
-          {checklistAssignees.length > 0 && (
-            <div className="mt-2 flex items-center gap-1 flex-wrap">
+      {/* 드래그 핸들 */}
+      <div className="absolute top-4 left-3 cursor-grab opacity-0 group-hover:opacity-100 transition-opacity">
+        <GripVertical size={14} className="text-zinc-600" />
+      </div>
+
+      {/* 제목 영역 */}
+      <div className="flex items-start justify-between mb-3 pl-4">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          {/* Feature 표시: 닫혀있으면 동그라미, 펼쳐있으면 태그 */}
+          {featureTitle ? (
+            isExpanded ? (
+              <span
+                className="text-[10px] font-bold px-2 py-0.5 rounded-full border flex-shrink-0"
+                style={{
+                  backgroundColor: `${cardColor}15`,
+                  borderColor: `${cardColor}44`,
+                  color: cardColor,
+                }}
+              >
+                {featureTitle}
+              </span>
+            ) : (
+              <div
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ backgroundColor: task.completed ? '#22c55e' : cardColor }}
+                title={featureTitle}
+              />
+            )
+          ) : (
+            <div
+              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: task.completed ? '#22c55e' : cardColor }}
+            />
+          )}
+          <h4 className="font-bold text-white text-[14px] leading-snug group-hover:text-indigo-400 transition-colors truncate">
+            {displayTitle}
+          </h4>
+        </div>
+      </div>
+
+      {/* 기타 태그 (펼쳐졌을 때만 표시) */}
+      {isExpanded && taskTags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-3 pl-4">
+          {taskTags.map((tag) => (
+            <span
+              key={tag.id}
+              className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
+              style={{
+                backgroundColor: `${tag.color}15`,
+                borderColor: `${tag.color}44`,
+                color: tag.color,
+              }}
+            >
+              {tag.name}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* 마감일 */}
+      {task.due_date && (
+        <div className="flex items-center gap-1.5 mb-3 pl-4">
+          <Calendar size={12} className="text-amber-400" />
+          <span className="text-[11px] font-bold text-amber-300">{task.due_date}</span>
+        </div>
+      )}
+
+      {/* 체크리스트 & 담당자 */}
+      <div className="flex items-center justify-between border-t border-kanban-border pt-3 mt-1 pl-4">
+        <div className="flex items-center gap-3">
+          {hasChecklist && (
+            <button
+              onClick={handleExpandClick}
+              className="flex items-center gap-1.5 text-zinc-400 hover:text-white transition-colors"
+            >
+              <CheckSquare size={12} />
+              <span className="text-[10px] font-semibold">
+                체크리스트 {hasLoaded ? `${completedCount}/${checklistItems.length}` : `${completedChecklistItems}/${task.checklist_total}`}
+              </span>
+              {isExpanded ? (
+                <ChevronUp size={12} className="text-zinc-600" />
+              ) : (
+                <ChevronDown size={12} className="text-zinc-600" />
+              )}
+            </button>
+          )}
+        </div>
+
+        {/* 담당자 */}
+        <div className="flex items-center gap-2">
+          {task.assignee ? (
+            <>
+              <div
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white border border-white/20"
+                style={{ backgroundColor: cardColor }}
+              >
+                {task.assignee.name.charAt(0)}
+              </div>
+              <span className="text-[11px] font-medium text-zinc-400">{task.assignee.name}</span>
+            </>
+          ) : checklistAssignees.length > 0 ? (
+            <div className="flex items-center gap-1">
               {checklistAssignees.slice(0, 3).map((assignee) => (
                 <div
                   key={assignee.id}
-                  className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-xs text-white"
+                  className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white border border-white/20"
+                  style={{ backgroundColor: cardColor }}
                   title={assignee.name}
                 >
                   {assignee.name.charAt(0).toUpperCase()}
                 </div>
               ))}
               {checklistAssignees.length > 3 && (
-                <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs text-gray-700">
+                <div className="w-6 h-6 rounded-full bg-zinc-700 flex items-center justify-center text-[10px] font-bold text-zinc-300 border border-white/10">
                   +{checklistAssignees.length - 3}
                 </div>
               )}
             </div>
-          )}
-
-          {/* 체크리스트 펼침 */}
-          {hasChecklist && boardId && (
-            <div className="mt-3 border-t pt-2">
-              <div
-                className="flex items-center gap-2 cursor-pointer hover:text-gray-700"
-                onClick={handleExpandClick}
-              >
-                <CheckSquare className="h-3 w-3 text-gray-500" />
-                <span className="text-xs text-gray-500">
-                  체크리스트 {hasLoaded ? `${completedCount}/${checklistItems.length}` : `${task.checklist_completed ?? 0}/${task.checklist_total ?? 0}`}
-                </span>
-                {isExpanded ? (
-                  <ChevronUp className="h-4 w-4 text-gray-500" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 text-gray-500" />
-                )}
-              </div>
-              {isExpanded && (
-                <div className="mt-2 space-y-1">
-                  {isLoading ? (
-                    <div className="text-xs text-gray-400">로딩 중...</div>
-                  ) : (
-                    checklistItems
-                      .sort((a, b) => a.position - b.position)
-                      .map((item) => (
-                        <div
-                          key={item.id}
-                          className="flex items-center gap-2 p-1.5 rounded bg-gray-50 hover:bg-gray-100"
-                          onClick={(e) => handleToggleItem(e, item.id)}
-                        >
-                          <div
-                            className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border ${
-                              item.completed
-                                ? 'bg-green-500 border-green-500'
-                                : 'bg-white border-gray-300'
-                            }`}
-                          >
-                            {item.completed && (
-                              <svg
-                                className="w-3 h-3 text-white"
-                                fill="none"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="2"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path d="M5 13l4 4L19 7"></path>
-                              </svg>
-                            )}
-                          </div>
-                          <span
-                            className={`text-xs flex-1 ${
-                              item.completed ? 'text-gray-400 line-through' : 'text-gray-700'
-                            }`}
-                          >
-                            {item.title}
-                          </span>
-                          {item.assignee && (
-                            <div
-                              className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-[10px] text-white flex-shrink-0"
-                              title={item.assignee.name}
-                            >
-                              {item.assignee.name.charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                        </div>
-                      ))
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+          ) : null}
         </div>
       </div>
+
+      {/* 체크리스트 펼침 */}
+      {isExpanded && hasChecklist && boardId && (
+        <div className="mt-3 pt-3 border-t border-kanban-border space-y-1.5 pl-4">
+          {isLoading ? (
+            <div className="text-xs text-zinc-500">로딩 중...</div>
+          ) : (
+            checklistItems
+              .sort((a, b) => a.position - b.position)
+              .map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center gap-2 p-2 rounded-lg bg-kanban-surface hover:bg-white/5 transition-colors"
+                  onClick={(e) => handleToggleItem(e, item.id)}
+                >
+                  <div
+                    className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-colors ${
+                      item.completed
+                        ? 'bg-green-500 border-green-500'
+                        : 'bg-transparent border-zinc-500 hover:border-zinc-400'
+                    }`}
+                  >
+                    {item.completed && (
+                      <svg
+                        className="w-2.5 h-2.5 text-white"
+                        fill="none"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </div>
+                  <span
+                    className={`text-xs flex-1 ${
+                      item.completed ? 'text-zinc-500 line-through' : 'text-zinc-300'
+                    }`}
+                  >
+                    {item.title}
+                  </span>
+                  {item.assignee && (
+                    <div
+                      className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0 border border-white/20"
+                      style={{ backgroundColor: cardColor }}
+                      title={item.assignee.name}
+                    >
+                      {item.assignee.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+              ))
+          )}
+        </div>
+      )}
     </div>
   );
 }

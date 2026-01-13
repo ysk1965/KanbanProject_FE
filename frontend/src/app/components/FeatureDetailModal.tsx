@@ -1,36 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Feature, Task, Tag, Priority } from '../types';
 import { FEATURE_COLORS } from '../constants';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from './ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from './ui/alert-dialog';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Textarea } from './ui/textarea';
-import { Label } from './ui/label';
-import { Progress } from './ui/progress';
-import { Badge } from './ui/badge';
-import { Plus, Check, ArrowRight, X, Trash2 } from 'lucide-react';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from './ui/select';
+import { X, Trash2, ChevronDown, Calendar, Plus, ClipboardList, CheckCircle2 } from 'lucide-react';
 
 interface FeatureDetailModalProps {
   feature: Feature | null;
@@ -60,8 +31,6 @@ export function FeatureDetailModal({
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [showTagInput, setShowTagInput] = useState(false);
   const [newTagName, setNewTagName] = useState('');
-
-  // 변경사항 추적
   const [initialFeature, setInitialFeature] = useState<Feature | null>(null);
   const [editedFeature, setEditedFeature] = useState<Feature | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
@@ -83,9 +52,11 @@ export function FeatureDetailModal({
     }
   }, [initialFeature, editedFeature]);
 
-  if (!feature || !editedFeature) return null;
+  if (!open || !feature || !editedFeature) return null;
 
   const progressPercent = feature.progress_percentage;
+  const completedCount = feature.completed_tasks;
+  const totalCount = feature.total_tasks;
 
   const handleClose = () => {
     if (hasChanges) {
@@ -158,329 +129,354 @@ export function FeatureDetailModal({
   const availableTagsToAdd = availableTags.filter(
     (tag) => !featureTags.some((t) => t.id === tag.id)
   );
+  const selectedColor = editedFeature.color || '#8B5CF6';
 
   return (
     <>
-      <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto" onPointerDownOutside={(e) => {
-          if (hasChanges) {
-            e.preventDefault();
-            handleClose();
-          }
-        }}>
-          <DialogHeader>
-            <DialogTitle>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 flex-1">
-                  <span>🟣</span>
-                  <Input
-                    value={editedFeature.title}
-                    onChange={(e) => updateEditedFeature({ title: e.target.value })}
-                    className="text-lg font-semibold border-0 p-0 focus-visible:ring-0"
-                  />
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowDeleteDialog(true)}
-                  className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {/* 설명 */}
-            <div className="space-y-2">
-              <Label>설명</Label>
-              <Textarea
-                value={editedFeature.description || ''}
-                onChange={(e) => updateEditedFeature({ description: e.target.value })}
-                placeholder="Feature 설명을 입력하세요..."
-                rows={3}
+      {/* Main Modal */}
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4"
+        onClick={handleClose}
+      >
+        <div
+          className="w-full max-w-xl bg-kanban-bg text-zinc-300 rounded-2xl border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden animate-in zoom-in-95 duration-200"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Top Control Bar */}
+          <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 bg-white/[0.02]">
+            <div className="flex items-center gap-3 flex-1">
+              <div
+                className="w-5 h-5 rounded-md shadow-lg flex-shrink-0 transition-all duration-300"
+                style={{
+                  backgroundColor: selectedColor,
+                  boxShadow: `0 0 15px ${selectedColor}88`,
+                  border: '1px solid rgba(255,255,255,0.2)',
+                }}
+              />
+              <input
+                type="text"
+                value={editedFeature.title}
+                onChange={(e) => updateEditedFeature({ title: e.target.value })}
+                className="text-lg font-bold bg-transparent border-none focus:outline-none rounded w-full text-white placeholder-zinc-600"
               />
             </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setShowDeleteDialog(true)}
+                className="p-2 text-zinc-500 hover:text-red-400 transition-colors"
+              >
+                <Trash2 size={18} />
+              </button>
+              <div className="w-px h-4 bg-white/10 mx-1" />
+              <button
+                onClick={handleClose}
+                className="p-2 text-zinc-500 hover:text-white transition-colors"
+              >
+                <X size={22} />
+              </button>
+            </div>
+          </div>
 
-            {/* 우선순위 & 마감일 */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>우선순위</Label>
-                <Select
-                  value={editedFeature.priority || 'MEDIUM'}
-                  onValueChange={(value) => updateEditedFeature({ priority: value as Priority })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="설정되지 않음" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="HIGH">
-                      <span className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-red-500" />
-                        높음
-                      </span>
-                    </SelectItem>
-                    <SelectItem value="MEDIUM">
-                      <span className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-yellow-500" />
-                        보통
-                      </span>
-                    </SelectItem>
-                    <SelectItem value="LOW">
-                      <span className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-green-500" />
-                        낮음
-                      </span>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          <div className="px-6 py-6 space-y-8 max-h-[80vh] overflow-y-auto kanban-scrollbar">
+            {/* Description Module */}
+            <section>
+              <label className="kanban-label block mb-3">설명</label>
+              <textarea
+                placeholder="FEATURE 설명을 입력하세요..."
+                value={editedFeature.description || ''}
+                onChange={(e) => updateEditedFeature({ description: e.target.value })}
+                className="w-full min-h-[100px] bg-kanban-input border border-white/5 rounded-xl p-4 text-zinc-300 focus:outline-none focus:border-indigo-500/50 transition-all resize-none text-sm leading-relaxed"
+              />
+            </section>
 
-              <div className="space-y-2">
-                <Label>마감일</Label>
-                <Input
-                  type="date"
-                  value={editedFeature.due_date || ''}
-                  onChange={(e) => updateEditedFeature({ due_date: e.target.value })}
-                />
-              </div>
+            {/* Core Specs Grid */}
+            <div className="grid grid-cols-2 gap-6">
+              <section>
+                <label className="kanban-label block mb-3">우선순위</label>
+                <div className="relative">
+                  <select
+                    value={editedFeature.priority || 'MEDIUM'}
+                    onChange={(e) => updateEditedFeature({ priority: e.target.value as Priority })}
+                    className="w-full bg-kanban-card-hover border border-white/5 rounded-lg px-4 py-2.5 appearance-none focus:outline-none focus:border-indigo-500/50 text-xs font-bold text-zinc-200"
+                  >
+                    <option value="HIGH" className="bg-kanban-bg">높음</option>
+                    <option value="MEDIUM" className="bg-kanban-bg">보통</option>
+                    <option value="LOW" className="bg-kanban-bg">낮음</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 pointer-events-none" size={14} />
+                </div>
+              </section>
+              <section>
+                <label className="kanban-label block mb-3">마감일</label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={editedFeature.due_date || ''}
+                    onChange={(e) => updateEditedFeature({ due_date: e.target.value })}
+                    className="w-full bg-kanban-card-hover border border-white/5 rounded-lg px-4 py-2.5 focus:outline-none focus:border-indigo-500/50 text-xs font-bold text-zinc-200"
+                  />
+                  <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 pointer-events-none" size={14} />
+                </div>
+              </section>
             </div>
 
-            {/* 색상 선택 */}
-            <div className="space-y-2">
-              <Label>Feature 색상</Label>
-              <div className="flex flex-wrap gap-2">
+            {/* Color Spectrum Selection */}
+            <section>
+              <label className="kanban-label block mb-4">FEATURE 색상</label>
+              <div className="flex flex-wrap gap-2.5">
                 {FEATURE_COLORS.map((color) => (
                   <button
                     key={color}
-                    className={`w-8 h-8 rounded-full border-2 transition-all hover:scale-110 ${ editedFeature.color === color
-                        ? 'border-gray-900 ring-2 ring-offset-2 ring-gray-900'
-                        : 'border-transparent hover:border-gray-300'
-                    }`}
-                    style={{ backgroundColor: color }}
                     onClick={() => updateEditedFeature({ color })}
+                    className={`w-7 h-7 rounded-full transition-all duration-300 ${
+                      selectedColor === color
+                        ? 'ring-2 ring-white ring-offset-2 ring-offset-kanban-bg scale-110'
+                        : 'opacity-40 hover:opacity-100 hover:scale-110'
+                    }`}
+                    style={{
+                      backgroundColor: color,
+                      boxShadow: selectedColor === color ? `0 0 15px ${color}` : 'none',
+                    }}
                   />
                 ))}
               </div>
-            </div>
+            </section>
 
-            {/* 태그 */}
-            <div className="space-y-2">
-              <Label>태그</Label>
+            {/* Tags Section */}
+            <section>
+              <label className="kanban-label block mb-3">태그</label>
               <div className="flex flex-wrap gap-2">
                 {featureTags.map((tag) => (
-                  <Badge
+                  <span
                     key={tag.id}
-                    style={{ backgroundColor: tag.color }}
-                    className="text-white flex items-center gap-1"
+                    className="text-[10px] font-bold px-2.5 py-1 rounded-full border flex items-center gap-1.5"
+                    style={{
+                      backgroundColor: `${tag.color}15`,
+                      borderColor: `${tag.color}44`,
+                      color: tag.color,
+                    }}
                   >
                     {tag.name}
                     <button
                       onClick={() => handleRemoveTag(tag.id)}
                       className="hover:opacity-80"
                     >
-                      <X className="h-3 w-3" />
+                      <X size={10} />
                     </button>
-                  </Badge>
+                  </span>
                 ))}
 
                 {showTagInput ? (
-                  <div className="flex gap-1 items-center">
-                    <Input
+                  <div className="flex gap-1.5 items-center">
+                    <input
                       value={newTagName}
                       onChange={(e) => setNewTagName(e.target.value)}
                       placeholder="태그 이름"
-                      className="h-7 w-32 text-sm"
+                      className="h-7 w-24 text-xs bg-kanban-input border border-white/10 rounded-lg px-2 focus:outline-none focus:border-indigo-500/50"
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          handleCreateNewTag();
-                        }
+                        if (e.key === 'Enter') handleCreateNewTag();
                       }}
                     />
-                    <Button size="sm" onClick={handleCreateNewTag}>
+                    <button
+                      onClick={handleCreateNewTag}
+                      className="px-2 py-1 bg-indigo-600/20 text-indigo-400 text-[10px] font-bold rounded-lg border border-indigo-500/20 hover:bg-indigo-600/30"
+                    >
                       생성
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
+                    </button>
+                    <button
                       onClick={() => {
                         setShowTagInput(false);
                         setNewTagName('');
                       }}
+                      className="text-zinc-500 hover:text-white text-xs"
                     >
                       취소
-                    </Button>
+                    </button>
                   </div>
                 ) : (
-                  <div className="flex gap-1">
+                  <div className="flex gap-1.5">
                     {availableTagsToAdd.length > 0 && (
-                      <Select onValueChange={handleAddTag}>
-                        <SelectTrigger className="w-[120px] h-7 text-sm">
-                          <SelectValue placeholder="태그 추가" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableTagsToAdd.map((tag) => (
-                            <SelectItem key={tag.id} value={tag.id}>
-                              <div className="flex items-center gap-2">
-                                <div
-                                  className="w-3 h-3 rounded-full"
-                                  style={{ backgroundColor: tag.color }}
-                                />
-                                {tag.name}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <select
+                        onChange={(e) => {
+                          if (e.target.value) handleAddTag(e.target.value);
+                          e.target.value = '';
+                        }}
+                        className="h-7 text-xs bg-kanban-card border border-white/10 rounded-lg px-2 focus:outline-none appearance-none cursor-pointer"
+                      >
+                        <option value="">태그 추가</option>
+                        {availableTagsToAdd.map((tag) => (
+                          <option key={tag.id} value={tag.id}>
+                            {tag.name}
+                          </option>
+                        ))}
+                      </select>
                     )}
-                    <Button
-                      size="sm"
-                      variant="outline"
+                    <button
                       onClick={() => setShowTagInput(true)}
+                      className="px-2.5 py-1 bg-white/5 text-zinc-400 text-[10px] font-bold rounded-lg border border-white/10 hover:bg-white/10 hover:text-white flex items-center gap-1"
                     >
-                      <Plus className="h-3 w-3 mr-1" />
-                      새 태그
-                    </Button>
+                      <Plus size={10} />새 태그
+                    </button>
                   </div>
                 )}
               </div>
-            </div>
+            </section>
 
-            {/* 진행률 */}
-            <div className="bg-purple-50 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-700">
-                  📋 서브태스크
-                </span>
-                <span className="text-sm font-semibold text-purple-600">
-                  {feature.completed_tasks}/{feature.total_tasks} 완료
+            {/* Subtask Module */}
+            <section className="space-y-4">
+              <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                <div className="flex items-center gap-2">
+                  <ClipboardList size={14} className="text-indigo-400" />
+                  <span className="kanban-label">서브태스크 리스트</span>
+                </div>
+                <span className="text-[11px] font-bold text-indigo-400 tabular-nums">
+                  {completedCount}/{totalCount} 완료
                 </span>
               </div>
-              <Progress value={progressPercent} className="h-2 mb-1" />
-              <p className="text-xs text-gray-500 text-right">
-                {Math.round(progressPercent)}%
-              </p>
-            </div>
 
-            {/* 서브태스크 목록 */}
-            <div className="space-y-2">
-              {tasks.map((task) => (
-                <div
-                  key={task.id}
-                  className={`flex items-center gap-3 p-3 rounded-lg border ${
-                    task.completed
-                      ? 'bg-green-50 border-green-200'
-                      : 'bg-gray-50 border-gray-200'
-                  }`}
-                >
-                  <div className="flex-shrink-0">
-                    {task.completed ? (
-                      <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
-                        <Check className="h-3 w-3 text-white" />
-                      </div>
-                    ) : (
-                      <div className="w-5 h-5 rounded-full bg-blue-500" />
-                    )}
+              <div className="bg-kanban-input border border-white/5 rounded-xl overflow-hidden">
+                {/* Progress Bar */}
+                <div className="p-5">
+                  <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-indigo-500 transition-all duration-1000 ease-out"
+                      style={{
+                        width: `${progressPercent}%`,
+                        boxShadow: '0 0 15px rgba(99,102,241,0.5)',
+                      }}
+                    />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p
-                      className={`text-sm ${
-                        task.completed
-                          ? 'line-through text-gray-500'
-                          : 'text-gray-900'
-                      }`}
-                    >
-                      {task.title}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-gray-500">
-                    <ArrowRight className="h-3 w-3" />
-                    <span className="font-medium">
-                      {getBlockName(task.block_id)}
+                  <div className="mt-2 text-right">
+                    <span className="text-[9px] font-black text-zinc-600 tracking-tighter uppercase">
+                      {Math.round(progressPercent)}% PROGRESS
                     </span>
                   </div>
                 </div>
-              ))}
-            </div>
 
-            {/* 서브태스크 추가 */}
-            <div className="flex gap-2">
-              <Input
-                placeholder="새 서브태스크 제목..."
-                value={newSubtaskTitle}
-                onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleAddSubtask();
-                  }
-                }}
-              />
-              <Button onClick={handleAddSubtask}>
-                <Plus className="h-4 w-4 mr-1" />
-                추가
-              </Button>
-            </div>
+                {/* Task Entries */}
+                <div className="border-t border-white/5 divide-y divide-white/5">
+                  {tasks.map((task) => (
+                    <div
+                      key={task.id}
+                      className="flex items-center justify-between px-5 py-4 hover:bg-white/[0.02] transition-colors group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-2 h-2 rounded-full flex-shrink-0"
+                          style={{
+                            backgroundColor: selectedColor,
+                            boxShadow: `0 0 8px ${selectedColor}44`,
+                          }}
+                        />
+                        <span className="text-xs font-semibold text-zinc-300 group-hover:text-white transition-colors">
+                          {task.title}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] font-black text-zinc-600">
+                        <span className="tracking-widest group-hover:text-indigo-400 transition-colors">
+                          → {getBlockName(task.block_id).toUpperCase()}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Quick Add Dock */}
+                <div className="bg-white/[0.02] p-2 flex gap-2 border-t border-white/5">
+                  <input
+                    type="text"
+                    placeholder="새 서브태스크 추가..."
+                    value={newSubtaskTitle}
+                    onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddSubtask();
+                    }}
+                    className="flex-1 bg-transparent border-none rounded-lg px-3 py-2 text-xs focus:outline-none text-zinc-300 placeholder-zinc-600"
+                  />
+                  <button
+                    onClick={handleAddSubtask}
+                    className="px-4 py-2 bg-indigo-600/10 text-indigo-400 text-[10px] font-black uppercase tracking-widest rounded-lg border border-indigo-500/20 hover:bg-indigo-600/20 hover:text-white transition-all active:scale-95"
+                  >
+                    ADD
+                  </button>
+                </div>
+              </div>
+            </section>
           </div>
 
-          {/* 저장 버튼 - 변경사항이 있을 때만 표시 */}
-          {hasChanges && (
-            <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button variant="outline" onClick={handleClose}>
-                취소
-              </Button>
-              <Button onClick={handleSave}>
-                저장
-              </Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* 확인 다이얼로그 */}
-      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>변경사항을 저장하시겠습니까?</AlertDialogTitle>
-            <AlertDialogDescription>
-              저장하지 않은 변경사항이 있습니다. 저장하지 않고 닫으면 변경사항이 사라집니다.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleDiscardAndClose}>
-              저장 안 함
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={handleSaveAndClose}>
-              저장
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* 삭제 다이얼로그 */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>이 기능을 삭제하시겠습니까?</AlertDialogTitle>
-            <AlertDialogDescription>
-              이 기능은 삭제되면 복구할 수 없습니다.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setShowDeleteDialog(false)}>
-              취소
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                onDelete(feature.id);
-                onClose();
-              }}
+          {/* Action Footer */}
+          <div className="px-6 py-5 border-t border-white/5 bg-white/[0.02] flex justify-end items-center gap-4">
+            <button
+              onClick={handleClose}
+              className="text-[11px] font-bold text-zinc-500 hover:text-white transition-all tracking-wider"
             >
-              삭제
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              취소
+            </button>
+            <button
+              onClick={handleSave}
+              className="px-6 py-2.5 bg-white text-black font-black text-[11px] rounded-lg tracking-widest hover:bg-zinc-200 transition-all flex items-center gap-2 active:scale-[0.98]"
+            >
+              변경사항 저장
+              <CheckCircle2 size={14} className="text-indigo-600" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Confirm Dialog */}
+      {showConfirmDialog && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-kanban-bg rounded-2xl border border-white/10 p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-white mb-2">변경사항을 저장하시겠습니까?</h3>
+            <p className="text-sm text-zinc-400 mb-6">
+              저장하지 않은 변경사항이 있습니다. 저장하지 않고 닫으면 변경사항이 사라집니다.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleDiscardAndClose}
+                className="flex-1 py-3 text-sm font-bold text-zinc-400 hover:text-white transition-colors border border-white/10 rounded-xl hover:bg-white/5"
+              >
+                저장 안 함
+              </button>
+              <button
+                onClick={handleSaveAndClose}
+                className="flex-1 py-3 bg-indigo-600 text-sm font-bold rounded-xl hover:bg-indigo-700 transition-colors text-white"
+              >
+                저장
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Dialog */}
+      {showDeleteDialog && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-kanban-bg rounded-2xl border border-white/10 p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-white mb-2">이 기능을 삭제하시겠습니까?</h3>
+            <p className="text-sm text-zinc-400 mb-6">
+              이 기능과 모든 서브태스크가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteDialog(false)}
+                className="flex-1 py-3 text-sm font-bold text-zinc-400 hover:text-white transition-colors border border-white/10 rounded-xl hover:bg-white/5"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => {
+                  onDelete(feature.id);
+                  onClose();
+                }}
+                className="flex-1 py-3 bg-red-500 text-sm font-bold rounded-xl hover:bg-red-600 transition-colors text-white"
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

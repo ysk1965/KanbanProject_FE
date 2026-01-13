@@ -110,65 +110,59 @@ export function MilestoneModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-[#282e33] rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-50">
+      <div className="bg-kanban-bg rounded-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
         {/* 헤더 */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-700">
+        <div className="flex items-center justify-between p-5 border-b border-kanban-border bg-white/[0.02]">
           <div className="flex items-center gap-2">
-            <Flag className="h-5 w-5 text-purple-400" />
-            <h2 className="text-lg font-semibold text-white">
+            <Flag className="h-5 w-5 text-indigo-400" />
+            <h2 className="text-lg font-bold text-white">
               {isEditMode ? '마일스톤 수정' : '새 마일스톤'}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors"
+            className="text-zinc-500 hover:text-white transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* 본문 */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
           {/* 제목 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              제목 *
-            </label>
+          <div className="space-y-2">
+            <label className="kanban-label block">제목 *</label>
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="마일스톤 제목"
-              className="bg-[#3a4149] border-gray-600 text-white"
+              className="bg-kanban-input border-white/5 text-white placeholder-zinc-600 focus:border-indigo-500/50 rounded-xl"
             />
           </div>
 
           {/* 설명 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              설명
-            </label>
+          <div className="space-y-2">
+            <label className="kanban-label block">설명</label>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="마일스톤 설명"
               rows={3}
-              className="bg-[#3a4149] border-gray-600 text-white resize-none"
+              className="bg-kanban-input border-white/5 text-white placeholder-zinc-600 resize-none focus:border-indigo-500/50 rounded-xl"
             />
           </div>
 
           {/* 기간 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              기간 *
-            </label>
+          <div className="space-y-2">
+            <label className="kanban-label block">기간 *</label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
-                  className="w-full h-10 justify-start text-left font-normal bg-[#3a4149] border-gray-600 text-white hover:bg-[#4a5159]"
+                  className="w-full h-10 justify-start text-left font-normal bg-kanban-card-hover border-white/5 text-white hover:bg-kanban-surface hover:border-indigo-500/50 rounded-xl"
                 >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  <CalendarIcon className="mr-2 h-4 w-4 text-zinc-500" />
                   {startDate && endDate ? (
                     <>
                       {format(startDate, 'yyyy. MM. dd.', { locale: ko })}
@@ -176,11 +170,11 @@ export function MilestoneModal({
                       {format(endDate, 'yyyy. MM. dd.', { locale: ko })}
                     </>
                   ) : (
-                    <span className="text-gray-400">기간을 선택하세요</span>
+                    <span className="text-zinc-500">기간을 선택하세요</span>
                   )}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 bg-[#3a4149] border-gray-600" align="start">
+              <PopoverContent className="w-auto p-0 bg-kanban-card border-kanban-border" align="start">
                 <Calendar
                   mode="range"
                   selected={{
@@ -200,34 +194,32 @@ export function MilestoneModal({
           </div>
 
           {/* Feature 연결 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              연결할 Feature
-            </label>
-            <div className="max-h-48 overflow-y-auto space-y-1 bg-[#1d2125] rounded-lg p-2">
+          <div className="space-y-2">
+            <label className="kanban-label block">연결할 Feature</label>
+            <div className="max-h-48 overflow-y-auto space-y-1 bg-kanban-card rounded-xl p-2 border border-white/5">
               {features.length > 0 ? (
                 features.map((feature) => (
                   <label
                     key={feature.id}
-                    className="flex items-center gap-2 p-2 rounded hover:bg-[#282e33] cursor-pointer"
+                    className="flex items-center gap-2 p-2 rounded-lg hover:bg-kanban-surface cursor-pointer transition-colors"
                   >
                     <input
                       type="checkbox"
                       checked={selectedFeatureIds.has(feature.id)}
                       onChange={() => toggleFeature(feature.id)}
-                      className="w-4 h-4 rounded border-gray-600 bg-[#3a4149] text-blue-500 focus:ring-blue-500"
+                      className="w-4 h-4 rounded border-white/10 bg-kanban-input text-indigo-500 focus:ring-indigo-500"
                     />
                     <div
                       className="w-3 h-3 rounded-full flex-shrink-0"
                       style={{ backgroundColor: feature.color }}
                     />
-                    <span className="text-sm text-gray-300 truncate">
+                    <span className="text-sm text-zinc-300 truncate">
                       {feature.title}
                     </span>
                   </label>
                 ))
               ) : (
-                <p className="text-sm text-gray-500 text-center py-4">
+                <p className="text-sm text-zinc-500 text-center py-4">
                   연결할 Feature가 없습니다
                 </p>
               )}
@@ -236,33 +228,32 @@ export function MilestoneModal({
         </div>
 
         {/* 푸터 */}
-        <div className="flex items-center justify-between p-4 border-t border-gray-700">
+        <div className="flex items-center justify-between p-5 border-t border-kanban-border bg-white/[0.02]">
           <div>
             {isEditMode && onDelete && (
               <Button
                 variant="ghost"
                 onClick={handleDelete}
-                className="text-red-400 hover:text-red-300 hover:bg-red-400/10"
+                className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
               >
                 삭제
               </Button>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
+          <div className="flex items-center gap-4">
+            <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white"
+              className="text-[11px] font-bold text-zinc-500 hover:text-white transition-all tracking-wider"
             >
               취소
-            </Button>
-            <Button
+            </button>
+            <button
               onClick={handleSave}
               disabled={isSaving}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
+              className="px-6 py-2.5 bg-white text-black font-black text-[11px] rounded-lg tracking-widest hover:bg-zinc-200 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSaving ? '저장 중...' : isEditMode ? '수정' : '생성'}
-            </Button>
+            </button>
           </div>
         </div>
       </div>

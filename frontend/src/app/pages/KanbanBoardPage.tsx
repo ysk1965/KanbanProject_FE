@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, Users, Settings, Filter, ArrowLeft, Bell, LayoutGrid, Calendar, CalendarDays, Flag, Pencil, Lock, BarChart3 } from 'lucide-react';
+import { Plus, Users, Settings, Filter, ArrowLeft, Bell, LayoutGrid, Calendar, CalendarDays, Flag, Pencil, Lock, BarChart3, Search, X, User, ChevronDown, CheckCircle2, Circle, Tag as TagIcon, Layers, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 
 // 뷰 모드 타입
 type ViewMode = 'kanban' | 'weekly' | 'schedule' | 'statistics';
@@ -14,7 +14,7 @@ import { TaskDetailModal } from '../components/TaskDetailModal';
 import { AddBlockModal } from '../components/AddBlockModal';
 import { AddFeatureModal } from '../components/AddFeatureModal';
 import { TrialBanner } from '../components/TrialBanner';
-import { FilterModal, FilterOptions } from '../components/FilterModal';
+import { FilterOptions } from '../components/FilterModal';
 import { ShareBoardModal, BoardMember as ShareBoardMember, MemberRole } from '../components/ShareBoardModal';
 import { SubscriptionModal } from '../components/SubscriptionModal';
 import { ActivityLogModal } from '../components/ActivityLogModal';
@@ -25,6 +25,11 @@ import { DailyScheduleView } from '../components/DailyScheduleView';
 import { WeeklyScheduleView } from '../components/WeeklyScheduleView';
 import { StatisticsView } from '../components/StatisticsView';
 import { Button } from '../components/ui/button';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '../components/ui/popover';
 import {
   Select,
   SelectContent,
@@ -80,9 +85,10 @@ export function KanbanBoardPage() {
 
   // 체크리스트 펼침 상태
   const [expandedChecklistTaskIds, setExpandedChecklistTaskIds] = useState<Set<string>>(new Set());
+  // Feature 서브태스크 펼침 상태
+  const [expandedFeatureIds, setExpandedFeatureIds] = useState<Set<string>>(new Set());
 
   // 멤버 데이터
-  const availableMembers = ['김철수', '이영희', '박개발', '이디자인', '최QA', '김기획'];
   const [boardMembersData, setBoardMembersData] = useState<ShareBoardMember[]>([]);
   const currentUserId = currentUser?.id || '';
 
@@ -94,7 +100,6 @@ export function KanbanBoardPage() {
   const [scheduleRefreshKey, setScheduleRefreshKey] = useState(0);
   const [isAddBlockModalOpen, setIsAddBlockModalOpen] = useState(false);
   const [isAddFeatureModalOpen, setIsAddFeatureModalOpen] = useState(false);
-  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [isShareBoardModalOpen, setIsShareBoardModalOpen] = useState(false);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [isActivityLogModalOpen, setIsActivityLogModalOpen] = useState(false);
@@ -977,186 +982,166 @@ export function KanbanBoardPage() {
           onOpenSubscription={() => setIsSubscriptionModalOpen(true)}
         />
 
-        <header className="bg-bridge-obsidian border-b border-white/5 glass">
-          <div className="px-6 py-4">
-            <div className="flex items-center justify-between max-w-full">
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => navigate('/boards')}
-                  className="text-slate-400 hover:text-white hover:bg-white/5"
-                >
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  보드
-                </Button>
-                <div className="h-6 w-px bg-white/10" />
-                <h1 className="text-xl font-serif font-bold text-white tracking-tight">
-                  {board?.name || '팀 칸반보드'}
-                </h1>
-                <div className="h-6 w-px bg-white/10" />
-                {/* 마일스톤 셀렉터 */}
-                <div className="flex items-center gap-2">
-                  <Flag className="h-4 w-4 text-bridge-secondary" />
-                  {milestones.length > 0 ? (
-                    <Select value={kanbanSelectedMilestoneId} onValueChange={handleKanbanMilestoneSelect}>
-                      <SelectTrigger className="w-[160px] h-8 bg-white/5 border-white/10 text-white text-sm rounded-lg">
-                        <SelectValue placeholder="마일스톤 선택" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-bridge-obsidian border-white/10">
-                        <SelectItem value="all" className="text-white hover:bg-white/10">
-                          전체
+        <header className="h-16 border-b border-kanban-border flex items-center justify-between px-6 bg-kanban-bg shrink-0 z-30">
+          {/* 좌측 영역 */}
+          <div className="flex items-center gap-6">
+            <button
+              onClick={() => navigate('/boards')}
+              className="p-2 hover:bg-kanban-surface rounded-lg transition-colors text-zinc-400 hover:text-white"
+            >
+              <ArrowLeft size={18} />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <h1 className="text-lg font-bold tracking-tight text-white">
+                {board?.name || '팀 칸반보드'}
+              </h1>
+
+              {/* 마일스톤 셀렉터 */}
+              <div className="flex items-center gap-2 bg-kanban-card px-3 py-1.5 rounded-md border border-kanban-border hover:border-indigo-500/50 cursor-pointer transition-all">
+                <Flag size={14} className="text-indigo-400" />
+                {milestones.length > 0 ? (
+                  <Select value={kanbanSelectedMilestoneId} onValueChange={handleKanbanMilestoneSelect}>
+                    <SelectTrigger className="bg-transparent border-none text-xs font-medium text-white focus:ring-0 h-auto p-0 w-[120px] [&>svg]:text-zinc-400">
+                      <SelectValue placeholder="마일스톤 선택" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-kanban-card border-kanban-border">
+                      <SelectItem value="all" className="text-zinc-300 hover:bg-white/10 focus:bg-white/10 focus:text-white text-xs">
+                        전체
+                      </SelectItem>
+                      {milestones.map((milestone) => (
+                        <SelectItem
+                          key={milestone.id}
+                          value={milestone.id}
+                          className="text-zinc-300 hover:bg-white/10 focus:bg-white/10 focus:text-white text-xs"
+                        >
+                          {milestone.title}
                         </SelectItem>
-                        {milestones.map((milestone) => (
-                          <SelectItem
-                            key={milestone.id}
-                            value={milestone.id}
-                            className="text-white hover:bg-white/10"
-                          >
-                            {milestone.title}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <span className="text-sm text-slate-500">마일스톤 없음</span>
-                  )}
-                  {kanbanSelectedMilestoneId !== 'all' && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        const milestone = milestones.find((m) => m.id === kanbanSelectedMilestoneId);
-                        if (milestone) handleOpenMilestoneWithCheck(milestone);
-                      }}
-                      className="h-8 w-8 p-0 text-slate-400 hover:text-white hover:bg-white/5"
-                      title="마일스톤 수정"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleOpenMilestoneWithCheck()}
-                    className={`h-8 px-2 ${
-                      !canAccessMilestone
-                        ? 'text-slate-500 hover:text-slate-400 hover:bg-white/5'
-                        : 'text-slate-400 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    + 추가
-                    {!canAccessMilestone && <Lock className="h-3 w-3 ml-1" />}
-                  </Button>
-                </div>
-                <div className="h-6 w-px bg-white/10" />
-                {/* 뷰 모드 전환 탭 */}
-                <div className="flex items-center bg-bridge-dark rounded-xl p-1 border border-white/10">
-                  <button
-                    onClick={() => handleViewModeChange('kanban')}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                      viewMode === 'kanban'
-                        ? 'bg-bridge-accent text-white shadow-lg'
-                        : 'text-slate-400 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    <LayoutGrid className="h-4 w-4" />
-                    칸반보드
-                  </button>
-                  <button
-                    onClick={() => handleViewModeChange('weekly')}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                      viewMode === 'weekly'
-                        ? 'bg-bridge-accent text-white shadow-lg'
-                        : !canAccessSchedule
-                          ? 'text-slate-500 hover:text-slate-400 hover:bg-white/5'
-                          : 'text-slate-400 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    <CalendarDays className="h-4 w-4" />
-                    간트차트
-                    {!canAccessSchedule && <Lock className="h-3 w-3 ml-1" />}
-                  </button>
-                  <button
-                    onClick={() => handleViewModeChange('schedule')}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                      viewMode === 'schedule'
-                        ? 'bg-bridge-accent text-white shadow-lg'
-                        : !canAccessSchedule
-                          ? 'text-slate-500 hover:text-slate-400 hover:bg-white/5'
-                          : 'text-slate-400 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    <Calendar className="h-4 w-4" />
-                    데일리스케줄
-                    {!canAccessSchedule && <Lock className="h-3 w-3 ml-1" />}
-                  </button>
-                  {/* 통계 탭 - Admin 이상만 표시 */}
-                  {isAdminOrOwner && (
-                    <button
-                      onClick={() => handleViewModeChange('statistics')}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                        viewMode === 'statistics'
-                          ? 'bg-bridge-accent text-white shadow-lg'
-                          : !canAccessStatistics
-                            ? 'text-slate-500 hover:text-slate-400 hover:bg-white/5'
-                            : 'text-slate-400 hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      <BarChart3 className="h-4 w-4" />
-                      통계
-                      {!canAccessStatistics && <Lock className="h-3 w-3 ml-1" />}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsActivityLogModalOpen(true)}
-                  className="border-white/10 text-slate-400 hover:bg-white/5 hover:text-white hover:border-bridge-accent/50"
-                >
-                  <Bell className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsFilterModalOpen(true)}
-                  className="border-white/10 text-slate-400 hover:bg-white/5 hover:text-white hover:border-bridge-accent/50"
-                >
-                  <Filter className="h-4 w-4 mr-2" />
-                  필터
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsShareBoardModalOpen(true)}
-                  className="border-white/10 text-slate-400 hover:bg-white/5 hover:text-white hover:border-bridge-accent/50"
-                >
-                  <Users className="h-4 w-4 mr-2" />
-                  팀원
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-white/10 text-slate-400 hover:bg-white/5 hover:text-white hover:border-bridge-accent/50"
-                >
-                  <Settings className="h-4 w-4 mr-2" />
-                  설정
-                </Button>
-
-                {currentUser && (
-                  <UserMenu
-                    user={currentUser}
-                    onOpenSubscription={() => setIsSubscriptionModalOpen(true)}
-                    onOpenSettings={() => {}}
-                    onLogout={logout}
-                  />
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span className="text-xs text-zinc-500">마일스톤 없음</span>
                 )}
               </div>
+
+              {kanbanSelectedMilestoneId !== 'all' && (
+                <button
+                  onClick={() => {
+                    const milestone = milestones.find((m) => m.id === kanbanSelectedMilestoneId);
+                    if (milestone) handleOpenMilestoneWithCheck(milestone);
+                  }}
+                  className="p-1.5 text-zinc-400 hover:text-white transition-colors"
+                  title="마일스톤 수정"
+                >
+                  <Pencil size={14} />
+                </button>
+              )}
+
+              <button
+                onClick={() => handleOpenMilestoneWithCheck()}
+                className={`p-1.5 transition-colors ${
+                  !canAccessMilestone
+                    ? 'text-zinc-600 hover:text-zinc-500'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                <Plus size={18} />
+                {!canAccessMilestone && <Lock className="h-2.5 w-2.5 absolute -top-0.5 -right-0.5" />}
+              </button>
             </div>
+          </div>
+
+          {/* 중앙 탭 영역 */}
+          <nav className="flex items-center gap-1 bg-kanban-card p-1 rounded-xl border border-kanban-border">
+            <button
+              onClick={() => handleViewModeChange('kanban')}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                viewMode === 'kanban'
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-kanban-surface'
+              }`}
+            >
+              <LayoutGrid size={14} />
+              칸반보드
+            </button>
+            <button
+              onClick={() => handleViewModeChange('weekly')}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                viewMode === 'weekly'
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+                  : !canAccessSchedule
+                    ? 'text-zinc-600 hover:text-zinc-500 hover:bg-kanban-surface'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-kanban-surface'
+              }`}
+            >
+              <CalendarDays size={14} />
+              간트차트
+              {!canAccessSchedule && <Lock size={10} className="ml-0.5" />}
+            </button>
+            <button
+              onClick={() => handleViewModeChange('schedule')}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                viewMode === 'schedule'
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+                  : !canAccessSchedule
+                    ? 'text-zinc-600 hover:text-zinc-500 hover:bg-kanban-surface'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-kanban-surface'
+              }`}
+            >
+              <Calendar size={14} />
+              데일리스케줄
+              {!canAccessSchedule && <Lock size={10} className="ml-0.5" />}
+            </button>
+            {isAdminOrOwner && (
+              <button
+                onClick={() => handleViewModeChange('statistics')}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  viewMode === 'statistics'
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+                    : !canAccessStatistics
+                      ? 'text-zinc-600 hover:text-zinc-500 hover:bg-kanban-surface'
+                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-kanban-surface'
+                }`}
+              >
+                <BarChart3 size={14} />
+                통계
+                {!canAccessStatistics && <Lock size={10} className="ml-0.5" />}
+              </button>
+            )}
+          </nav>
+
+          {/* 우측 액션 영역 */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 border-r border-kanban-border pr-3 mr-1">
+              <button
+                onClick={() => setIsActivityLogModalOpen(true)}
+                className="flex items-center gap-2 px-3 py-2 text-zinc-400 hover:text-white hover:bg-kanban-surface rounded-lg transition-all"
+              >
+                <Bell size={18} />
+              </button>
+                <button
+                onClick={() => setIsShareBoardModalOpen(true)}
+                className="flex items-center gap-2 px-3 py-2 text-zinc-400 hover:text-white hover:bg-kanban-surface rounded-lg transition-all"
+              >
+                <Users size={18} />
+                <span className="text-xs font-semibold">팀원</span>
+              </button>
+              <button
+                className="flex items-center gap-2 px-3 py-2 text-zinc-400 hover:text-white hover:bg-kanban-surface rounded-lg transition-all"
+              >
+                <Settings size={18} />
+              </button>
+            </div>
+
+            {currentUser && (
+              <UserMenu
+                user={currentUser}
+                onOpenSubscription={() => setIsSubscriptionModalOpen(true)}
+                onOpenSettings={() => {}}
+                onLogout={logout}
+              />
+            )}
           </div>
         </header>
 
@@ -1198,26 +1183,26 @@ export function KanbanBoardPage() {
             />
           </main>
         ) : viewMode === 'kanban' ? (
-          <main className="flex-1 flex flex-col overflow-hidden">
+          <main className="flex-1 flex flex-col overflow-hidden bg-kanban-bg">
             {/* Task 카운터 (Standard 보드) */}
             {isStandardTier && boardLimits && (
-              <div className="px-6 py-2 bg-bridge-obsidian border-b border-white/5">
+              <div className="px-6 py-2 bg-kanban-card border-b border-kanban-border">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400">
-                      Task: <span className={`font-medium ${boardLimits.current_task_count >= (boardLimits.task_limit || 10) ? 'text-red-400' : 'text-white'}`}>
+                    <span className="text-xs text-zinc-400">
+                      Task: <span className={`font-semibold ${boardLimits.current_task_count >= (boardLimits.task_limit || 10) ? 'text-red-400' : 'text-white'}`}>
                         {boardLimits.current_task_count}
                       </span>
-                      <span className="text-slate-500">/{boardLimits.task_limit || 10}</span>
+                      <span className="text-zinc-600">/{boardLimits.task_limit || 10}</span>
                     </span>
                     {!boardLimits.can_create_task && (
-                      <span className="text-xs text-red-400">(한도 도달)</span>
+                      <span className="text-xs text-red-400 font-semibold">(한도 도달)</span>
                     )}
                   </div>
                   {!boardLimits.can_create_task && (
                     <button
                       onClick={() => openUpgradeModal('task_limit')}
-                      className="text-xs text-bridge-accent hover:text-bridge-accent/80 font-medium transition-colors"
+                      className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold transition-colors"
                     >
                       Premium으로 업그레이드
                     </button>
@@ -1225,8 +1210,334 @@ export function KanbanBoardPage() {
                 </div>
               </div>
             )}
+            {/* 검색 + 필터 툴바 */}
+            <div className="px-6 py-3 border-b border-kanban-border flex items-center gap-2 flex-wrap">
+              {/* 검색 */}
+              <div className="relative w-80">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                <input
+                  type="text"
+                  placeholder="검색..."
+                  value={filterOptions.keyword}
+                  onChange={(e) => setFilterOptions({ ...filterOptions, keyword: e.target.value })}
+                  className="w-full bg-kanban-surface border border-kanban-border rounded-lg py-2 pl-10 pr-8 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all"
+                />
+                {filterOptions.keyword && (
+                  <button
+                    onClick={() => setFilterOptions({ ...filterOptions, keyword: '' })}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              <div className="h-6 w-px bg-kanban-border mx-1" />
+
+              {/* 담당자 필터 */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all ${
+                      filterOptions.members.length > 0
+                        ? 'bg-purple-500/20 text-purple-400 border border-purple-500/50'
+                        : 'bg-kanban-surface border border-kanban-border text-zinc-400 hover:text-white hover:border-zinc-600'
+                    }`}
+                  >
+                    <User size={14} />
+                    담당자
+                    {filterOptions.members.length > 0 && (
+                      <span className="bg-purple-500 text-white text-xs px-1.5 py-0.5 rounded-full min-w-[18px]">
+                        {filterOptions.members.length}
+                      </span>
+                    )}
+                    <ChevronDown size={14} />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 p-2 bg-kanban-card border-kanban-border" align="start">
+                  <div className="space-y-1">
+                    <button
+                      onClick={() => {
+                        const exists = filterOptions.members.includes('__no_members__');
+                        setFilterOptions({
+                          ...filterOptions,
+                          members: exists
+                            ? filterOptions.members.filter(m => m !== '__no_members__')
+                            : [...filterOptions.members, '__no_members__']
+                        });
+                      }}
+                      className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition-all ${
+                        filterOptions.members.includes('__no_members__')
+                          ? 'bg-zinc-600 text-white'
+                          : 'text-zinc-300 hover:bg-white/5'
+                      }`}
+                    >
+                      <Circle size={14} className="text-zinc-400" />
+                      담당자 없음
+                    </button>
+                    {boardMembersData.map((member) => (
+                      <button
+                        key={member.id}
+                        onClick={() => {
+                          const exists = filterOptions.members.includes(member.name);
+                          setFilterOptions({
+                            ...filterOptions,
+                            members: exists
+                              ? filterOptions.members.filter(m => m !== member.name)
+                              : [...filterOptions.members, member.name]
+                          });
+                        }}
+                        className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition-all ${
+                          filterOptions.members.includes(member.name)
+                            ? 'bg-purple-500/20 text-purple-300'
+                            : 'text-zinc-300 hover:bg-white/5'
+                        }`}
+                      >
+                        <div className="w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center text-[10px] text-white font-bold">
+                          {member.name.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="truncate">{member.name}</span>
+                        {filterOptions.members.includes(member.name) && (
+                          <CheckCircle2 size={14} className="ml-auto text-purple-400" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              {/* Feature 필터 */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all ${
+                      filterOptions.features.length > 0
+                        ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50'
+                        : 'bg-kanban-surface border border-kanban-border text-zinc-400 hover:text-white hover:border-zinc-600'
+                    }`}
+                  >
+                    <Layers size={14} />
+                    Feature
+                    {filterOptions.features.length > 0 && (
+                      <span className="bg-indigo-500 text-white text-xs px-1.5 py-0.5 rounded-full min-w-[18px]">
+                        {filterOptions.features.length}
+                      </span>
+                    )}
+                    <ChevronDown size={14} />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-2 bg-kanban-card border-kanban-border max-h-80 overflow-y-auto" align="start">
+                  <div className="space-y-1">
+                    {features.map((feature) => (
+                      <button
+                        key={feature.id}
+                        onClick={() => {
+                          const exists = filterOptions.features.includes(feature.id);
+                          setFilterOptions({
+                            ...filterOptions,
+                            features: exists
+                              ? filterOptions.features.filter(f => f !== feature.id)
+                              : [...filterOptions.features, feature.id]
+                          });
+                        }}
+                        className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition-all ${
+                          filterOptions.features.includes(feature.id)
+                            ? 'bg-indigo-500/20 text-indigo-300'
+                            : 'text-zinc-300 hover:bg-white/5'
+                        }`}
+                      >
+                        <div
+                          className="w-3 h-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: feature.color || '#8B5CF6' }}
+                        />
+                        <span className="truncate">{feature.title}</span>
+                        {filterOptions.features.includes(feature.id) && (
+                          <CheckCircle2 size={14} className="ml-auto text-indigo-400 flex-shrink-0" />
+                        )}
+                      </button>
+                    ))}
+                    {features.length === 0 && (
+                      <p className="text-sm text-zinc-500 text-center py-2">Feature가 없습니다</p>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              {/* 라벨 필터 */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all ${
+                      filterOptions.tags.length > 0
+                        ? 'bg-teal-500/20 text-teal-400 border border-teal-500/50'
+                        : 'bg-kanban-surface border border-kanban-border text-zinc-400 hover:text-white hover:border-zinc-600'
+                    }`}
+                  >
+                    <TagIcon size={14} />
+                    라벨
+                    {filterOptions.tags.length > 0 && (
+                      <span className="bg-teal-500 text-white text-xs px-1.5 py-0.5 rounded-full min-w-[18px]">
+                        {filterOptions.tags.length}
+                      </span>
+                    )}
+                    <ChevronDown size={14} />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 p-2 bg-kanban-card border-kanban-border max-h-80 overflow-y-auto" align="start">
+                  <div className="space-y-1">
+                    {tags.map((tag) => (
+                      <button
+                        key={tag.id}
+                        onClick={() => {
+                          const exists = filterOptions.tags.includes(tag.id);
+                          setFilterOptions({
+                            ...filterOptions,
+                            tags: exists
+                              ? filterOptions.tags.filter(t => t !== tag.id)
+                              : [...filterOptions.tags, tag.id]
+                          });
+                        }}
+                        className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition-all ${
+                          filterOptions.tags.includes(tag.id)
+                            ? 'ring-1 ring-white/50'
+                            : 'hover:opacity-80'
+                        }`}
+                        style={{ backgroundColor: tag.color }}
+                      >
+                        <span className="text-white truncate">{tag.name}</span>
+                        {filterOptions.tags.includes(tag.id) && (
+                          <CheckCircle2 size={14} className="ml-auto text-white flex-shrink-0" />
+                        )}
+                      </button>
+                    ))}
+                    {tags.length === 0 && (
+                      <p className="text-sm text-zinc-500 text-center py-2">라벨이 없습니다</p>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              {/* 상태 필터 */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all ${
+                      filterOptions.cardStatus.length > 0
+                        ? 'bg-green-500/20 text-green-400 border border-green-500/50'
+                        : 'bg-kanban-surface border border-kanban-border text-zinc-400 hover:text-white hover:border-zinc-600'
+                    }`}
+                  >
+                    <CheckCircle2 size={14} />
+                    상태
+                    {filterOptions.cardStatus.length > 0 && (
+                      <span className="bg-green-500 text-white text-xs px-1.5 py-0.5 rounded-full min-w-[18px]">
+                        {filterOptions.cardStatus.length}
+                      </span>
+                    )}
+                    <ChevronDown size={14} />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-44 p-2 bg-kanban-card border-kanban-border" align="start">
+                  <div className="space-y-1">
+                    <button
+                      onClick={() => {
+                        const exists = filterOptions.cardStatus.includes('completed');
+                        setFilterOptions({
+                          ...filterOptions,
+                          cardStatus: exists
+                            ? filterOptions.cardStatus.filter(s => s !== 'completed')
+                            : [...filterOptions.cardStatus, 'completed']
+                        });
+                      }}
+                      className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition-all ${
+                        filterOptions.cardStatus.includes('completed')
+                          ? 'bg-green-500/20 text-green-300'
+                          : 'text-zinc-300 hover:bg-white/5'
+                      }`}
+                    >
+                      <CheckCircle2 size={14} className="text-green-400" />
+                      완료됨
+                      {filterOptions.cardStatus.includes('completed') && (
+                        <CheckCircle2 size={14} className="ml-auto text-green-400" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const exists = filterOptions.cardStatus.includes('incomplete');
+                        setFilterOptions({
+                          ...filterOptions,
+                          cardStatus: exists
+                            ? filterOptions.cardStatus.filter(s => s !== 'incomplete')
+                            : [...filterOptions.cardStatus, 'incomplete']
+                        });
+                      }}
+                      className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition-all ${
+                        filterOptions.cardStatus.includes('incomplete')
+                          ? 'bg-yellow-500/20 text-yellow-300'
+                          : 'text-zinc-300 hover:bg-white/5'
+                      }`}
+                    >
+                      <Circle size={14} className="text-yellow-400" />
+                      미완료
+                      {filterOptions.cardStatus.includes('incomplete') && (
+                        <CheckCircle2 size={14} className="ml-auto text-yellow-400" />
+                      )}
+                    </button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              {/* 필터 초기화 */}
+              {(filterOptions.keyword || filterOptions.members.length > 0 || filterOptions.features.length > 0 || filterOptions.tags.length > 0 || filterOptions.cardStatus.length > 0) && (
+                <>
+                  <div className="h-6 w-px bg-kanban-border mx-1" />
+                  <button
+                    onClick={() => setFilterOptions({ keyword: '', members: [], features: [], tags: [], cardStatus: [], dueDate: [] })}
+                    className="flex items-center gap-1 px-3 py-2 text-xs text-zinc-500 hover:text-white transition-colors"
+                  >
+                    <X size={12} />
+                    초기화
+                  </button>
+                </>
+              )}
+
+              {/* 스페이서 */}
+              <div className="flex-1" />
+
+              {/* 모두 펼치기/닫기 */}
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => {
+                    // 체크리스트 모두 펼치기
+                    const allTaskIds = tasks.map(t => t.id);
+                    setExpandedChecklistTaskIds(new Set(allTaskIds));
+                    // Feature 서브태스크 모두 펼치기
+                    const allFeatureIds = features.map(f => f.id);
+                    setExpandedFeatureIds(new Set(allFeatureIds));
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs text-zinc-500 hover:text-white hover:bg-kanban-surface rounded-lg transition-colors"
+                  title="모두 펼치기"
+                >
+                  <ChevronsUpDown size={14} />
+                  펼치기
+                </button>
+                <button
+                  onClick={() => {
+                    // 체크리스트 모두 닫기
+                    setExpandedChecklistTaskIds(new Set());
+                    // Feature 서브태스크 모두 닫기
+                    setExpandedFeatureIds(new Set());
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs text-zinc-500 hover:text-white hover:bg-kanban-surface rounded-lg transition-colors"
+                  title="모두 닫기"
+                >
+                  <ChevronsDownUp size={14} />
+                  닫기
+                </button>
+              </div>
+            </div>
             {/* 칸반 보드 */}
-            <div className="flex-1 p-6 overflow-x-auto">
+            <div className="flex-1 p-6 overflow-x-auto kanban-scrollbar">
               <div className="flex gap-4 min-w-max">
               {sortedBlocks.map((block, index) => {
               const customBlocks = sortedBlocks.filter((b) => b.type === 'CUSTOM');
@@ -1235,14 +1546,14 @@ export function KanbanBoardPage() {
               return (
                 <div key={block.id} className="flex items-start gap-4">
                   {block.fixed_type === 'FEATURE' ? (
-                    <div className="flex flex-col bg-bridge-obsidian rounded-2xl min-w-[280px] max-w-[280px] border border-white/5">
-                      <div className="flex items-center justify-between p-4 border-b border-white/5">
+                    <div className="flex flex-col bg-kanban-card rounded-2xl min-w-[320px] max-w-[320px] border border-kanban-border">
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-kanban-border">
                         <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-white">{block.name}</h3>
-                          <span className="text-sm text-gray-400">{filteredFeatures.length}</span>
+                          <h3 className="font-bold text-sm text-white tracking-tight">{block.name}</h3>
+                          <span className="text-xs font-semibold text-zinc-500 bg-kanban-surface px-2 py-0.5 rounded-md">{filteredFeatures.length}</span>
                         </div>
                       </div>
-                      <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[calc(100vh-250px)]">
+                      <div className="flex-1 p-3 space-y-3 overflow-y-auto max-h-[calc(100vh-250px)] kanban-scrollbar">
                         {filteredFeatures.map((feature) => (
                           <FeatureCard
                             key={feature.id}
@@ -1251,18 +1562,29 @@ export function KanbanBoardPage() {
                             availableTags={tags}
                             tasks={filteredTasks.filter((task) => task.feature_id === feature.id)}
                             milestone={getFeatureMilestone(feature.id)}
+                            isExpanded={expandedFeatureIds.has(feature.id)}
+                            onToggleExpand={() => {
+                              setExpandedFeatureIds(prev => {
+                                const newSet = new Set(prev);
+                                if (newSet.has(feature.id)) {
+                                  newSet.delete(feature.id);
+                                } else {
+                                  newSet.add(feature.id);
+                                }
+                                return newSet;
+                              });
+                            }}
                           />
                         ))}
                       </div>
-                      <div className="p-2">
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start text-slate-400 hover:text-white hover:bg-white/5"
+                      <div className="p-3 border-t border-kanban-border">
+                        <button
                           onClick={() => setIsAddFeatureModalOpen(true)}
+                          className="w-full flex items-center justify-center gap-2 py-2 text-zinc-500 hover:text-white hover:bg-kanban-surface rounded-lg transition-all text-xs font-semibold"
                         >
-                          <Plus className="h-4 w-4 mr-2" />
+                          <Plus className="h-4 w-4" />
                           Feature 추가
-                        </Button>
+                        </button>
                       </div>
                     </div>
                   ) : (
@@ -1299,14 +1621,12 @@ export function KanbanBoardPage() {
                   )}
 
                   {block.fixed_type === 'TASK' && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-10 px-3 mt-4 border-white/10 text-slate-400 hover:bg-white/5 hover:text-white hover:border-bridge-accent/50"
+                    <button
                       onClick={() => setIsAddBlockModalOpen(true)}
+                      className="h-10 w-10 mt-4 flex items-center justify-center rounded-xl border border-dashed border-kanban-border text-zinc-500 hover:text-white hover:border-indigo-500/50 hover:bg-indigo-500/10 transition-all"
                     >
-                      <Plus className="h-4 w-4" />
-                    </Button>
+                      <Plus className="h-5 w-5" />
+                    </button>
                   )}
                 </div>
               );
@@ -1388,16 +1708,6 @@ export function KanbanBoardPage() {
           open={isAddFeatureModalOpen}
           onClose={() => setIsAddFeatureModalOpen(false)}
           onAdd={handleAddFeature}
-        />
-
-        <FilterModal
-          open={isFilterModalOpen}
-          onClose={() => setIsFilterModalOpen(false)}
-          onApplyFilter={setFilterOptions}
-          availableMembers={availableMembers}
-          availableTags={tags}
-          availableFeatures={features}
-          currentFilters={filterOptions}
         />
 
         <ShareBoardModal

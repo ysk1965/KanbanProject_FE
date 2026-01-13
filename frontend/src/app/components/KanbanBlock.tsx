@@ -231,7 +231,7 @@ export function KanbanBlock({
   // 플레이스홀더 JSX
   const placeholderElement = (
     <div
-      className="h-16 border-2 border-dashed border-blue-400 rounded-lg bg-blue-50/50 flex items-center justify-center"
+      className="h-16 border-2 border-dashed border-indigo-500/50 rounded-xl bg-indigo-500/10 flex items-center justify-center"
       onDragEnter={(e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
@@ -246,7 +246,7 @@ export function KanbanBlock({
         handleTaskDrop(e);
       }}
     >
-      <span className="text-blue-400 text-sm pointer-events-none">여기에 놓기</span>
+      <span className="text-indigo-400 text-xs font-semibold pointer-events-none">여기에 놓기</span>
     </div>
   );
 
@@ -272,19 +272,19 @@ export function KanbanBlock({
         handleTaskDrop(e);
         handleBlockDrop(e);
       }}
-      className={`relative flex flex-col bg-[#282e33] rounded-lg min-w-[280px] max-w-[280px] transition-all duration-200 ${
-        taskPlaceholderInThisBlock ? 'ring-2 ring-blue-500 bg-[#2c3339]' : ''
+      className={`relative flex flex-col bg-kanban-card rounded-2xl border border-kanban-border min-w-[280px] max-w-[280px] transition-all duration-200 ${
+        taskPlaceholderInThisBlock ? 'ring-2 ring-indigo-500/50 bg-indigo-500/5' : ''
       } ${isThisBlockDragging ? 'opacity-40 scale-95 rotate-1' : ''} ${
-        state.blockPlaceholderIndex === blockIndex && state.draggedBlock ? 'ring-2 ring-purple-500' : ''
+        state.blockPlaceholderIndex === blockIndex && state.draggedBlock ? 'ring-2 ring-indigo-500' : ''
       }`}
     >
       {/* 드롭 인디케이터 (왼쪽) */}
       {state.blockPlaceholderIndex === blockIndex && state.draggedBlock && (
-        <div className="absolute -left-2 top-0 bottom-0 w-1 bg-purple-500 rounded-full animate-pulse" />
+        <div className="absolute -left-2 top-0 bottom-0 w-1 bg-indigo-500 rounded-full animate-pulse" />
       )}
 
       {/* 블록 헤더 */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-700 group">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-kanban-border group">
         {/* 드래그 핸들 - 커스텀 블록만 표시 */}
         {isCustomBlock && (
           <div
@@ -292,41 +292,41 @@ export function KanbanBlock({
             draggable
             onDragStart={handleBlockDragStart}
             onDragEnd={handleBlockDragEnd}
-            className="cursor-grab active:cursor-grabbing p-1 -ml-1 mr-1 rounded hover:bg-[#3a4149] opacity-60 group-hover:opacity-100 transition-opacity"
+            className="cursor-grab active:cursor-grabbing p-1 -ml-1 mr-1 rounded-lg hover:bg-kanban-surface opacity-40 group-hover:opacity-100 transition-all"
             title="드래그하여 블록 이동"
           >
-            <GripVertical className="h-4 w-4 text-gray-400" />
+            <GripVertical className="h-4 w-4 text-zinc-500" />
           </div>
         )}
         <div className="flex items-center gap-2 flex-1">
           {block.color && (
             <div
-              className="w-3 h-3 rounded-full"
+              className="w-2.5 h-2.5 rounded-full"
               style={{ backgroundColor: block.color }}
             />
           )}
-          <h3 className="font-semibold text-white">{block.name}</h3>
-          <span className="text-sm text-gray-400">{tasks.length}</span>
+          <h3 className="font-bold text-sm text-white tracking-tight">{block.name}</h3>
+          <span className="text-xs font-semibold text-zinc-500 bg-kanban-surface px-2 py-0.5 rounded-md">{tasks.length}</span>
         </div>
 
         {!isFixedBlock && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400 hover:text-white hover:bg-[#3a4149]">
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-zinc-500 hover:text-white hover:bg-kanban-surface opacity-0 group-hover:opacity-100 transition-all">
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-[#282e33] border-gray-700">
-              <DropdownMenuItem onClick={onEditBlock} className="text-gray-300 hover:bg-[#3a4149] hover:text-white">
+            <DropdownMenuContent align="end" className="bg-kanban-card border-kanban-border">
+              <DropdownMenuItem onClick={onEditBlock} className="text-zinc-300 hover:bg-kanban-surface hover:text-white text-xs">
                 이름 변경
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={onEditBlock} className="text-gray-300 hover:bg-[#3a4149] hover:text-white">
+              <DropdownMenuItem onClick={onEditBlock} className="text-zinc-300 hover:bg-kanban-surface hover:text-white text-xs">
                 색상 변경
               </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-gray-700" />
+              <DropdownMenuSeparator className="bg-kanban-border" />
               <DropdownMenuItem
                 onClick={onDeleteBlock}
-                className="text-red-400 hover:bg-[#3a4149] hover:text-red-300"
+                className="text-red-400 hover:bg-red-500/10 hover:text-red-300 text-xs"
               >
                 블록 삭제
               </DropdownMenuItem>
@@ -338,7 +338,7 @@ export function KanbanBlock({
       {/* 카드 리스트 */}
       <div
         ref={taskContainerRef}
-        className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[calc(100vh-250px)]"
+        className="flex-1 p-3 space-y-3 overflow-y-auto max-h-[calc(100vh-250px)] kanban-scrollbar"
         onDragEnter={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -374,7 +374,7 @@ export function KanbanBlock({
           >
             {/* 플레이스홀더 - 해당 인덱스 전에 표시 */}
             {taskPlaceholderInThisBlock && placeholderIndex === index && state.draggedTask?.id !== task.id && (
-              <div className="mb-2">
+              <div className="mb-3">
                 {placeholderElement}
               </div>
             )}

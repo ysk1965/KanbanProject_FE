@@ -131,7 +131,7 @@ export function ShareBoardModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col bg-gray-900 text-white border-gray-700">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col bg-kanban-bg text-white border-kanban-border rounded-2xl">
         <DialogHeader>
           <DialogTitle className="text-white">Share board</DialogTitle>
           <DialogDescription className="sr-only">
@@ -147,7 +147,7 @@ export function ShareBoardModal({
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
                 placeholder="Email address or name"
-                className="flex-1 bg-gray-800 border-gray-700 text-white placeholder:text-gray-400"
+                className="flex-1 bg-kanban-card border-kanban-border text-white placeholder:text-zinc-500"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     handleInvite();
@@ -158,7 +158,7 @@ export function ShareBoardModal({
                 value={inviteRole}
                 onValueChange={(value) => setInviteRole(value as MemberRole)}
               >
-                <SelectTrigger className="w-[130px] bg-gray-800 border-gray-700 text-white">
+                <SelectTrigger className="w-[130px] bg-kanban-card border-kanban-border text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -170,27 +170,27 @@ export function ShareBoardModal({
               <Button
                 onClick={handleInvite}
                 disabled={!inviteEmail.trim()}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-indigo-600 hover:bg-indigo-700"
               >
                 Share
               </Button>
             </div>
 
             {/* 링크 공유 */}
-            <div className="flex items-center justify-between p-3 bg-gray-800 rounded-lg border border-gray-700">
+            <div className="flex items-center justify-between p-3 bg-kanban-card rounded-lg border border-kanban-border">
               <div className="flex items-center gap-3">
-                <LinkIcon className="h-5 w-5 text-gray-400" />
+                <LinkIcon className="h-5 w-5 text-zinc-400" />
                 <div>
-                  <p className="text-sm text-gray-300">
+                  <p className="text-sm text-zinc-300">
                     Anyone with the link can join as an
                   </p>
                   <div className="flex items-center gap-2">
-                    <button className="text-sm text-blue-400 hover:underline">
+                    <button className="text-sm text-indigo-400 hover:underline">
                       Observer
                     </button>
-                    <span className="text-gray-500">•</span>
+                    <span className="text-zinc-500">•</span>
                     <button
-                      className="text-sm text-blue-400 hover:underline disabled:opacity-50"
+                      className="text-sm text-indigo-400 hover:underline disabled:opacity-50"
                       onClick={handleCopyLink}
                       disabled={isCreatingLink}
                     >
@@ -204,7 +204,7 @@ export function ShareBoardModal({
                 size="sm"
                 onClick={handleCopyLink}
                 disabled={isCreatingLink}
-                className="text-gray-300 hover:text-white hover:bg-gray-700"
+                className="text-zinc-300 hover:text-white hover:bg-white/5"
               >
                 {isCreatingLink ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -221,7 +221,7 @@ export function ShareBoardModal({
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <h3 className="font-semibold text-white">Board members</h3>
-              <Badge variant="secondary" className="bg-gray-700 text-gray-300">
+              <Badge variant="secondary" className="bg-kanban-surface text-zinc-300">
                 {members.length}
               </Badge>
             </div>
@@ -234,7 +234,7 @@ export function ShareBoardModal({
                 return (
                   <div
                     key={member.id}
-                    className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-800 border border-transparent hover:border-gray-700"
+                    className="flex items-center justify-between p-3 rounded-lg hover:bg-white/5 border border-transparent hover:border-kanban-border"
                   >
                     <div className="flex items-center gap-3">
                       {/* 아바타 */}
@@ -249,10 +249,10 @@ export function ShareBoardModal({
                             {member.name}
                           </span>
                           {isCurrentMember && (
-                            <span className="text-xs text-gray-400">(you)</span>
+                            <span className="text-xs text-zinc-400">(you)</span>
                           )}
                         </div>
-                        <p className="text-sm text-gray-400">{member.email}</p>
+                        <p className="text-sm text-zinc-400">{member.email}</p>
                       </div>
                     </div>
 
@@ -266,7 +266,7 @@ export function ShareBoardModal({
                               onUpdateMemberRole(member.id, value as MemberRole)
                             }
                           >
-                            <SelectTrigger className="w-[130px] bg-gray-800 border-gray-700 text-white">
+                            <SelectTrigger className="w-[130px] bg-kanban-card border-kanban-border text-white">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -301,19 +301,19 @@ export function ShareBoardModal({
           </div>
 
           {/* 권한 설명 */}
-          <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
+          <div className="p-4 bg-kanban-card rounded-lg border border-kanban-border">
             <h4 className="font-semibold text-white mb-2">역할 권한</h4>
-            <div className="space-y-2 text-sm text-gray-400">
+            <div className="space-y-2 text-sm text-zinc-400">
               <div>
                 <span className="font-medium text-purple-400">Admin:</span> 모든
                 권한 (멤버 관리, 보드 설정, 카드 편집 등)
               </div>
               <div>
-                <span className="font-medium text-blue-400">Member:</span> 카드
+                <span className="font-medium text-indigo-400">Member:</span> 카드
                 생성 및 편집, 댓글 작성
               </div>
               <div>
-                <span className="font-medium text-gray-400">Observer:</span> 읽기
+                <span className="font-medium text-zinc-400">Observer:</span> 읽기
                 전용 (카드 조회만 가능)
               </div>
             </div>
@@ -321,11 +321,11 @@ export function ShareBoardModal({
         </div>
 
         {/* 닫기 버튼 */}
-        <div className="flex justify-end pt-4 border-t border-gray-700">
+        <div className="flex justify-end pt-4 border-t border-kanban-border">
           <Button
             onClick={onClose}
             variant="outline"
-            className="border-gray-600 text-gray-300 hover:bg-gray-800"
+            className="border-kanban-border text-zinc-300 hover:bg-white/5"
           >
             Close
           </Button>
@@ -333,11 +333,11 @@ export function ShareBoardModal({
 
         {/* 복사 알림 토스트 */}
         {copyMessage && (
-          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg border border-gray-600 flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 z-50">
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-kanban-card text-white px-4 py-2 rounded-lg shadow-lg border border-kanban-border flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 z-50">
             {linkCopied ? (
               <Check className="h-4 w-4 text-green-400" />
             ) : (
-              <LinkIcon className="h-4 w-4 text-gray-400" />
+              <LinkIcon className="h-4 w-4 text-zinc-400" />
             )}
             <span className="text-sm">{copyMessage}</span>
           </div>

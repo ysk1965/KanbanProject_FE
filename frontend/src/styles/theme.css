@@ -6,6 +6,15 @@
   --bridge-obsidian: #0F1419;
   --bridge-accent: #6366F1;
   --bridge-secondary: #2DD4BF;
+
+  /* Kanban Dark Theme Colors */
+  --kanban-bg: #0c0c0f;
+  --kanban-card: #121216;
+  --kanban-card-hover: #1e1e24;
+  --kanban-border: #2a2a32;
+  --kanban-border-hover: #3a3a45;
+  --kanban-surface: #252530;
+  --kanban-input: #0a0a0d;
   --font-size: 16px;
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
@@ -191,6 +200,15 @@
   --color-bridge-obsidian: var(--bridge-obsidian);
   --color-bridge-accent: var(--bridge-accent);
   --color-bridge-secondary: var(--bridge-secondary);
+
+  /* Kanban Theme Utilities */
+  --color-kanban-bg: var(--kanban-bg);
+  --color-kanban-card: var(--kanban-card);
+  --color-kanban-card-hover: var(--kanban-card-hover);
+  --color-kanban-border: var(--kanban-border);
+  --color-kanban-border-hover: var(--kanban-border-hover);
+  --color-kanban-surface: var(--kanban-surface);
+  --color-kanban-input: var(--kanban-input);
 }
 
 /* Glass morphism effect */
@@ -243,4 +261,46 @@
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
+}
+
+/* Kanban Board Styles */
+.kanban-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.kanban-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.kanban-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.kanban-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Kanban Card Glow Effect */
+.kanban-glow {
+  transition: all 0.3s ease;
+}
+
+.kanban-glow:hover {
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.15);
+}
+
+/* Kanban Progress Bar Glow */
+.progress-glow {
+  box-shadow: 0 0 10px currentColor;
+}
+
+/* Kanban Label Style */
+.kanban-label {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: #71717a;
 }

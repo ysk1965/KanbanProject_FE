@@ -265,6 +265,12 @@ export interface BoardSubscription {
   current_period_end: string | null;
 }
 
+export interface MemberPreviewResponse {
+  id: string;
+  name: string;
+  profile_image: string | null;
+}
+
 export interface BoardListItem {
   id: string;
   name: string;
@@ -272,6 +278,9 @@ export interface BoardListItem {
   role: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER';
   is_starred: boolean;
   member_count: number;
+  task_count: number;
+  completed_tasks: number;
+  members: MemberPreviewResponse[];
   subscription: BoardSubscription;
   created_at: string;
 }

@@ -170,8 +170,8 @@ export function FilterModal({
       icon: <User className="h-3.5 w-3.5" />,
       isActive: filters.members.includes('__current_user__'),
       onClick: () => handleToggleMember('__current_user__'),
-      color: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-      activeColor: 'bg-blue-500 text-white border-blue-500',
+      color: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30',
+      activeColor: 'bg-indigo-500 text-white border-indigo-500',
     },
     {
       id: 'overdue',
@@ -221,12 +221,12 @@ export function FilterModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg bg-[#282e33] text-white border-gray-700 p-0 gap-0">
-        <DialogHeader className="px-4 py-3 border-b border-gray-700">
+      <DialogContent className="max-w-lg bg-kanban-bg text-white border-kanban-border p-0 gap-0">
+        <DialogHeader className="px-4 py-3 border-b border-kanban-border">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-white text-lg font-semibold">필터</DialogTitle>
             {isFilterActive && (
-              <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
+              <Badge className="bg-indigo-500/20 text-indigo-400 border-indigo-500/30">
                 {getActiveFilterCount()}개 활성
               </Badge>
             )}
@@ -237,19 +237,19 @@ export function FilterModal({
         </DialogHeader>
 
         {/* 검색바 */}
-        <div className="px-4 py-3 border-b border-gray-700">
+        <div className="px-4 py-3 border-b border-kanban-border">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
             <Input
               value={filters.keyword}
               onChange={(e) => setFilters({ ...filters, keyword: e.target.value })}
               placeholder="키워드로 검색..."
-              className="pl-9 bg-[#1d2125] border-gray-600 text-white placeholder:text-gray-500 h-9"
+              className="pl-9 bg-kanban-card border-kanban-border text-white placeholder:text-zinc-500 h-9"
             />
             {filters.keyword && (
               <button
                 onClick={() => setFilters({ ...filters, keyword: '' })}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -258,21 +258,21 @@ export function FilterModal({
         </div>
 
         {/* 탭 네비게이션 */}
-        <div className="flex border-b border-gray-700 px-2 overflow-x-auto">
+        <div className="flex border-b border-kanban-border px-2 overflow-x-auto">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
                 activeTab === tab.id
-                  ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-gray-400 hover:text-gray-200'
+                  ? 'border-indigo-500 text-indigo-400'
+                  : 'border-transparent text-zinc-400 hover:text-zinc-200'
               }`}
             >
               {tab.icon}
               {tab.label}
               {tab.count !== undefined && tab.count > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-400">
+                <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-indigo-500/20 text-indigo-400">
                   {tab.count}
                 </span>
               )}
@@ -285,7 +285,7 @@ export function FilterModal({
           {/* 빠른 필터 탭 */}
           {activeTab === 'quick' && (
             <div className="space-y-4">
-              <p className="text-sm text-gray-400">자주 사용하는 필터를 빠르게 적용하세요</p>
+              <p className="text-sm text-zinc-400">자주 사용하는 필터를 빠르게 적용하세요</p>
               <div className="flex flex-wrap gap-2">
                 {quickFilters.map((filter) => (
                   <button
@@ -303,14 +303,14 @@ export function FilterModal({
 
               {/* 이번 주 마감 */}
               <div className="pt-2">
-                <p className="text-xs text-gray-500 mb-2">마감 기한</p>
+                <p className="text-xs text-zinc-500 mb-2">마감 기한</p>
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => handleToggleDueDate('no-date')}
                     className={`px-3 py-1.5 rounded-md text-sm border transition-all ${
                       filters.dueDate.includes('no-date')
                         ? 'bg-gray-500 text-white border-gray-500'
-                        : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-700'
+                        : 'bg-kanban-surface text-zinc-300 border-kanban-border hover:bg-white/5'
                     }`}
                   >
                     날짜 없음
@@ -319,8 +319,8 @@ export function FilterModal({
                     onClick={() => handleToggleDueDate('next-week')}
                     className={`px-3 py-1.5 rounded-md text-sm border transition-all ${
                       filters.dueDate.includes('next-week')
-                        ? 'bg-blue-500 text-white border-blue-500'
-                        : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-700'
+                        ? 'bg-indigo-500 text-white border-indigo-500'
+                        : 'bg-kanban-surface text-zinc-300 border-kanban-border hover:bg-white/5'
                     }`}
                   >
                     이번 주
@@ -329,8 +329,8 @@ export function FilterModal({
                     onClick={() => handleToggleDueDate('next-month')}
                     className={`px-3 py-1.5 rounded-md text-sm border transition-all ${
                       filters.dueDate.includes('next-month')
-                        ? 'bg-blue-500 text-white border-blue-500'
-                        : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-700'
+                        ? 'bg-indigo-500 text-white border-indigo-500'
+                        : 'bg-kanban-surface text-zinc-300 border-kanban-border hover:bg-white/5'
                     }`}
                   >
                     이번 달
@@ -350,18 +350,18 @@ export function FilterModal({
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-all ${
                     filters.members.includes('__no_members__')
                       ? 'bg-gray-500 text-white border-gray-500'
-                      : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-700'
+                      : 'bg-kanban-surface text-zinc-300 border-kanban-border hover:bg-white/5'
                   }`}
                 >
-                  <User className="h-4 w-4 text-gray-400" />
+                  <User className="h-4 w-4 text-zinc-400" />
                   담당자 없음
                 </button>
                 <button
                   onClick={() => handleToggleMember('__current_user__')}
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-all ${
                     filters.members.includes('__current_user__')
-                      ? 'bg-blue-500 text-white border-blue-500'
-                      : 'bg-blue-500/20 text-blue-400 border-blue-500/30 hover:bg-blue-500/30'
+                      ? 'bg-indigo-500 text-white border-indigo-500'
+                      : 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30 hover:bg-indigo-500/30'
                   }`}
                 >
                   <div className="w-5 h-5 rounded-full bg-orange-500 flex items-center justify-center text-[10px] text-white font-bold">
@@ -374,7 +374,7 @@ export function FilterModal({
               {/* 멤버 목록 */}
               {availableMembers.length > 0 && (
                 <div>
-                  <p className="text-xs text-gray-500 mb-2">팀 멤버</p>
+                  <p className="text-xs text-zinc-500 mb-2">팀 멤버</p>
                   <div className="grid grid-cols-2 gap-2">
                     {availableMembers.map((member) => (
                       <button
@@ -383,7 +383,7 @@ export function FilterModal({
                         className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm text-left transition-all ${
                           filters.members.includes(member)
                             ? 'bg-purple-500 text-white border-purple-500'
-                            : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-700'
+                            : 'bg-kanban-surface text-zinc-300 border-kanban-border hover:bg-white/5'
                         }`}
                       >
                         <div className="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center text-xs text-white flex-shrink-0">
@@ -397,7 +397,7 @@ export function FilterModal({
               )}
 
               {availableMembers.length === 0 && (
-                <p className="text-sm text-gray-500 text-center py-4">
+                <p className="text-sm text-zinc-500 text-center py-4">
                   등록된 팀 멤버가 없습니다
                 </p>
               )}
@@ -412,16 +412,16 @@ export function FilterModal({
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-all ${
                   filters.features.includes('__no_feature__')
                     ? 'bg-gray-500 text-white border-gray-500'
-                    : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-700'
+                    : 'bg-kanban-surface text-zinc-300 border-kanban-border hover:bg-white/5'
                 }`}
               >
-                <Circle className="h-4 w-4 text-gray-400" />
+                <Circle className="h-4 w-4 text-zinc-400" />
                 Feature 없음
               </button>
 
               {availableFeatures.length > 0 && (
                 <div>
-                  <p className="text-xs text-gray-500 mb-2">Feature 선택</p>
+                  <p className="text-xs text-zinc-500 mb-2">Feature 선택</p>
                   <div className="space-y-1.5">
                     {availableFeatures.map((feature) => (
                       <button
@@ -430,7 +430,7 @@ export function FilterModal({
                         className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg border text-sm text-left transition-all ${
                           filters.features.includes(feature.id)
                             ? 'bg-purple-500/20 border-purple-500 text-white'
-                            : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-700'
+                            : 'bg-kanban-surface text-zinc-300 border-kanban-border hover:bg-white/5'
                         }`}
                       >
                         <div
@@ -448,7 +448,7 @@ export function FilterModal({
               )}
 
               {availableFeatures.length === 0 && (
-                <p className="text-sm text-gray-500 text-center py-4">
+                <p className="text-sm text-zinc-500 text-center py-4">
                   등록된 Feature가 없습니다
                 </p>
               )}
@@ -460,14 +460,14 @@ export function FilterModal({
             <div className="space-y-4">
               {/* 완료 상태 */}
               <div>
-                <p className="text-xs text-gray-500 mb-2">완료 상태</p>
+                <p className="text-xs text-zinc-500 mb-2">완료 상태</p>
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleToggleCardStatus('completed')}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm flex-1 justify-center transition-all ${
                       filters.cardStatus.includes('completed')
                         ? 'bg-green-500 text-white border-green-500'
-                        : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-700'
+                        : 'bg-kanban-surface text-zinc-300 border-kanban-border hover:bg-white/5'
                     }`}
                   >
                     <CheckCircle2 className="h-4 w-4" />
@@ -478,7 +478,7 @@ export function FilterModal({
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm flex-1 justify-center transition-all ${
                       filters.cardStatus.includes('incomplete')
                         ? 'bg-yellow-500 text-white border-yellow-500'
-                        : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-700'
+                        : 'bg-kanban-surface text-zinc-300 border-kanban-border hover:bg-white/5'
                     }`}
                   >
                     <Circle className="h-4 w-4" />
@@ -489,17 +489,17 @@ export function FilterModal({
 
               {/* 마감일 */}
               <div>
-                <p className="text-xs text-gray-500 mb-2">마감 기한</p>
+                <p className="text-xs text-zinc-500 mb-2">마감 기한</p>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => handleToggleDueDate('no-date')}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-all ${
                       filters.dueDate.includes('no-date')
                         ? 'bg-gray-500 text-white border-gray-500'
-                        : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-700'
+                        : 'bg-kanban-surface text-zinc-300 border-kanban-border hover:bg-white/5'
                     }`}
                   >
-                    <Calendar className="h-4 w-4 text-gray-400" />
+                    <Calendar className="h-4 w-4 text-zinc-400" />
                     날짜 없음
                   </button>
                   <button
@@ -528,8 +528,8 @@ export function FilterModal({
                     onClick={() => handleToggleDueDate('next-week')}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-all ${
                       filters.dueDate.includes('next-week')
-                        ? 'bg-blue-500 text-white border-blue-500'
-                        : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-700'
+                        ? 'bg-indigo-500 text-white border-indigo-500'
+                        : 'bg-kanban-surface text-zinc-300 border-kanban-border hover:bg-white/5'
                     }`}
                   >
                     <Clock className="h-4 w-4" />
@@ -539,8 +539,8 @@ export function FilterModal({
                     onClick={() => handleToggleDueDate('next-month')}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm col-span-2 transition-all ${
                       filters.dueDate.includes('next-month')
-                        ? 'bg-blue-500 text-white border-blue-500'
-                        : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-700'
+                        ? 'bg-indigo-500 text-white border-indigo-500'
+                        : 'bg-kanban-surface text-zinc-300 border-kanban-border hover:bg-white/5'
                     }`}
                   >
                     <Clock className="h-4 w-4" />
@@ -559,16 +559,16 @@ export function FilterModal({
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-all ${
                   filters.tags.includes('__no_labels__')
                     ? 'bg-gray-500 text-white border-gray-500'
-                    : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-700'
+                    : 'bg-kanban-surface text-zinc-300 border-kanban-border hover:bg-white/5'
                 }`}
               >
-                <TagIcon className="h-4 w-4 text-gray-400" />
+                <TagIcon className="h-4 w-4 text-zinc-400" />
                 라벨 없음
               </button>
 
               {availableTags.length > 0 && (
                 <div>
-                  <p className="text-xs text-gray-500 mb-2">라벨 선택</p>
+                  <p className="text-xs text-zinc-500 mb-2">라벨 선택</p>
                   <div className="flex flex-wrap gap-2">
                     {availableTags.map((tag) => (
                       <button
@@ -576,7 +576,7 @@ export function FilterModal({
                         onClick={() => handleToggleTag(tag.id)}
                         className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                           filters.tags.includes(tag.id)
-                            ? 'ring-2 ring-white ring-offset-2 ring-offset-[#282e33]'
+                            ? 'ring-2 ring-white ring-offset-2 ring-offset-kanban-bg'
                             : 'hover:opacity-80'
                         }`}
                         style={{ backgroundColor: tag.color }}
@@ -592,7 +592,7 @@ export function FilterModal({
               )}
 
               {availableTags.length === 0 && (
-                <p className="text-sm text-gray-500 text-center py-4">
+                <p className="text-sm text-zinc-500 text-center py-4">
                   등록된 라벨이 없습니다
                 </p>
               )}
@@ -601,7 +601,7 @@ export function FilterModal({
         </div>
 
         {/* 선택된 필터 요약 & 액션 */}
-        <div className="px-4 py-3 border-t border-gray-700 bg-[#1d2125]">
+        <div className="px-4 py-3 border-t border-kanban-border bg-kanban-card">
           {/* 선택된 필터 표시 */}
           {isFilterActive && (
             <div className="flex flex-wrap gap-1.5 mb-3">
@@ -621,7 +621,7 @@ export function FilterModal({
                 return (
                   <Badge
                     key={featureId}
-                    className="bg-blue-500/20 text-blue-400 border-blue-500/30 gap-1 pr-1"
+                    className="bg-indigo-500/20 text-indigo-400 border-indigo-500/30 gap-1 pr-1"
                   >
                     {featureId === '__no_feature__' ? 'Feature 없음' : feature?.title || featureId}
                     <button onClick={() => handleToggleFeature(featureId)} className="hover:text-white">
@@ -651,7 +651,7 @@ export function FilterModal({
                   className={`gap-1 pr-1 ${
                     date === 'overdue'
                       ? 'bg-red-500/20 text-red-400 border-red-500/30'
-                      : 'bg-gray-500/20 text-gray-400 border-gray-500/30'
+                      : 'bg-gray-500/20 text-zinc-400 border-gray-500/30'
                   }`}
                 >
                   {date === 'no-date' ? '날짜 없음' :
@@ -689,11 +689,11 @@ export function FilterModal({
               variant="outline"
               onClick={handleClear}
               disabled={!isFilterActive}
-              className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-700 disabled:opacity-50"
+              className="flex-1 border-kanban-border text-zinc-300 hover:bg-white/5 disabled:opacity-50"
             >
               초기화
             </Button>
-            <Button onClick={handleApply} className="flex-1 bg-blue-600 hover:bg-blue-700">
+            <Button onClick={handleApply} className="flex-1 bg-indigo-600 hover:bg-indigo-700">
               적용하기
             </Button>
           </div>

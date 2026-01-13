@@ -33,7 +33,7 @@ import {
 import { Badge } from './ui/badge';
 import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { X, Plus, Trash2, Clock, CheckSquare, CalendarIcon, FileText, Tags, Users, Layers } from 'lucide-react';
+import { X, Plus, Trash2, Clock, CheckSquare, CalendarIcon, FileText, Tags, Users, Layers, Pencil } from 'lucide-react';
 import { Progress } from './ui/progress';
 import { DateRange } from 'react-day-picker';
 import { format } from 'date-fns';
@@ -73,6 +73,7 @@ export function TaskDetailModal({
   const [hasChanges, setHasChanges] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
 
   // 체크리스트 상태
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
@@ -82,6 +83,7 @@ export function TaskDetailModal({
       setInitialTask(JSON.parse(JSON.stringify(task)));
       setEditedTask(JSON.parse(JSON.stringify(task)));
       setHasChanges(false);
+      setIsEditingTitle(false);
       setChecklistItems([]); // 체크리스트 초기화
 
       // 체크리스트 API 로드
@@ -230,7 +232,7 @@ export function TaskDetailModal({
       // 부모 상태 업데이트 (카드에 반영)
       const newTotal = newItems.length;
       const newCompleted = newItems.filter(item => item.completed).length;
-      onUpdate({ checklist_total: newTotal, checklist_completed: newCompleted });
+      onUpdate({ checklist_total: newTotal, checklist_completed: newCompleted, checklist_version: Date.now() });
     } catch (error) {
       console.error('Failed to add checklist item:', error);
     }
@@ -260,7 +262,7 @@ export function TaskDetailModal({
 
     // 부모 상태 업데이트 (카드에 반영)
     const completedCount = newItems.filter(item => item.completed).length;
-    onUpdate({ checklist_total: newItems.length, checklist_completed: completedCount });
+    onUpdate({ checklist_total: newItems.length, checklist_completed: completedCount, checklist_version: Date.now() });
 
     try {
       await checklistAPI.toggleItem(boardId, task.id, itemId);
@@ -269,7 +271,7 @@ export function TaskDetailModal({
       // 롤백
       setChecklistItems(prevItems);
       const prevCompleted = prevItems.filter(item => item.completed).length;
-      onUpdate({ checklist_total: prevItems.length, checklist_completed: prevCompleted });
+      onUpdate({ checklist_total: prevItems.length, checklist_completed: prevCompleted, checklist_version: Date.now() });
     }
   };
 
@@ -290,6 +292,8 @@ export function TaskDetailModal({
         start_date: updates.start_date ?? null,
         due_date: updates.due_date ?? null,
       });
+      // 체크리스트 버전 업데이트하여 카드에 변경 알림
+      onUpdate({ checklist_version: Date.now() });
     } catch (error) {
       console.error('Failed to update checklist item:', error);
     }
@@ -305,7 +309,7 @@ export function TaskDetailModal({
 
     // 부모 task 상태 업데이트
     const newCompleted = newItems.filter(item => item.completed).length;
-    onUpdate({ checklist_total: newItems.length, checklist_completed: newCompleted });
+    onUpdate({ checklist_total: newItems.length, checklist_completed: newCompleted, checklist_version: Date.now() });
 
     try {
       await checklistAPI.deleteItem(boardId, task.id, itemId);
@@ -314,7 +318,7 @@ export function TaskDetailModal({
       // 롤백
       setChecklistItems(originalItems);
       const rolledBackCompleted = originalItems.filter(item => item.completed).length;
-      onUpdate({ checklist_total: originalItems.length, checklist_completed: rolledBackCompleted });
+      onUpdate({ checklist_total: originalItems.length, checklist_completed: rolledBackCompleted, checklist_version: Date.now() });
     }
   };
 
@@ -332,7 +336,7 @@ export function TaskDetailModal({
   return (
     <>
       <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto bg-bridge-obsidian border border-white/10 text-white" onPointerDownOutside={(e) => {
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto bg-kanban-bg border border-white/10 text-white kanban-scrollbar" onPointerDownOutside={(e) => {
           if (hasChanges) {
             e.preventDefault();
             handleClose();
@@ -359,12 +363,31 @@ export function TaskDetailModal({
             </div>
             <DialogTitle>
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 flex-1">
-                  <Input
-                    value={editedTask.title}
-                    onChange={(e) => updateEditedTask({ title: e.target.value })}
-                    className="text-lg font-semibold border-0 p-0 focus-visible:ring-0 bg-transparent text-white"
-                  />
+                <div className="flex items-center gap-2 flex-1 group">
+                  {isEditingTitle ? (
+                    <Input
+                      value={editedTask.title}
+                      onChange={(e) => updateEditedTask({ title: e.target.value })}
+                      onBlur={() => setIsEditingTitle(false)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === 'Escape') {
+                          setIsEditingTitle(false);
+                        }
+                      }}
+                      className="text-lg font-semibold border border-white/20 px-2 py-1 rounded-lg focus-visible:ring-1 focus-visible:ring-bridge-accent bg-white/5 text-white"
+                      autoFocus
+                    />
+                  ) : (
+                    <div
+                      className="flex items-center gap-2 cursor-pointer hover:bg-white/5 px-2 py-1 rounded-lg transition-colors"
+                      onClick={() => setIsEditingTitle(true)}
+                    >
+                      <span className="text-lg font-semibold text-white">
+                        {editedTask.title}
+                      </span>
+                      <Pencil className="h-4 w-4 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  )}
                 </div>
                 <Button
                   variant="ghost"
@@ -578,13 +601,21 @@ export function TaskDetailModal({
 
           {/* 체크리스트 섹션 */}
           <div className="mt-6 pt-6 border-t border-white/10">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <CheckSquare className="h-5 w-5 text-slate-400" />
+                <CheckSquare className="h-5 w-5 text-indigo-400" />
                 <Label className="text-base font-semibold text-white">CheckList</Label>
               </div>
-              <div className="text-sm text-slate-400">
-                {checklistProgress}%
+              <div className="flex items-center gap-3">
+                <div className="w-24 h-2 bg-zinc-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-indigo-500 rounded-full transition-all duration-300"
+                    style={{ width: `${checklistProgress}%` }}
+                  />
+                </div>
+                <span className="text-sm font-semibold text-indigo-400">
+                  {checklistProgress}%
+                </span>
               </div>
             </div>
 
@@ -674,6 +705,24 @@ export function TaskDetailModal({
   );
 }
 
+// 담당자 색상 생성 함수
+const ASSIGNEE_COLORS = [
+  { bg: 'bg-indigo-500', bgLight: 'bg-indigo-500/20', text: 'text-indigo-300' },
+  { bg: 'bg-purple-500', bgLight: 'bg-purple-500/20', text: 'text-purple-300' },
+  { bg: 'bg-teal-500', bgLight: 'bg-teal-500/20', text: 'text-teal-300' },
+  { bg: 'bg-rose-500', bgLight: 'bg-rose-500/20', text: 'text-rose-300' },
+  { bg: 'bg-amber-500', bgLight: 'bg-amber-500/20', text: 'text-amber-300' },
+  { bg: 'bg-emerald-500', bgLight: 'bg-emerald-500/20', text: 'text-emerald-300' },
+];
+
+function getAssigneeColor(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return ASSIGNEE_COLORS[Math.abs(hash) % ASSIGNEE_COLORS.length];
+}
+
 // 체크리스트 항목 컴포넌트
 function ChecklistItemRow({
   item,
@@ -691,6 +740,9 @@ function ChecklistItemRow({
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState(item.title);
   const [showOptions, setShowOptions] = useState(false);
+
+  // 담당자 색상
+  const assigneeColor = item.assignee ? getAssigneeColor(item.assignee.name) : null;
 
   const handleSaveTitle = () => {
     if (editedTitle.trim() && editedTitle !== item.title) {
@@ -792,11 +844,14 @@ function ChecklistItemRow({
               {format(new Date(item.done_date), 'M/d', { locale: ko })}
             </div>
           )}
-          {item.assignee && (
-            <div className="flex items-center gap-1">
-              <div className="w-4 h-4 rounded-full bg-bridge-accent flex items-center justify-center text-xs text-white">
+          {item.assignee && assigneeColor && (
+            <div className={`flex items-center gap-1.5 ${assigneeColor.bgLight} rounded-full px-2 py-0.5`}>
+              <div className={`w-5 h-5 rounded-full ${assigneeColor.bg} flex items-center justify-center text-[10px] font-bold text-white`}>
                 {item.assignee.name.charAt(0).toUpperCase()}
               </div>
+              <span className={`text-[11px] font-medium ${assigneeColor.text} pr-0.5`}>
+                {item.assignee.name}
+              </span>
             </div>
           )}
         </div>

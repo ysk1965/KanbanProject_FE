@@ -1,168 +1,193 @@
 import { Feature, Task, Milestone } from '../types';
-import { Progress } from './ui/progress';
-import { Calendar, AlertCircle, ChevronDown, ChevronUp, CheckCircle2, Flag } from 'lucide-react';
-import { Badge } from './ui/badge';
+import { Calendar, AlertCircle, ChevronDown, ChevronUp, ChevronRight, Flag } from 'lucide-react';
 import { useState } from 'react';
 
 interface FeatureCardProps {
   feature: Feature;
   onClick?: () => void;
   availableTags?: Array<{ id: string; name: string; color: string }>;
-  tasks?: Task[]; // 서브태스크 목록
-  milestone?: Milestone; // 연결된 마일스톤
+  tasks?: Task[];
+  milestone?: Milestone;
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
 }
 
-const priorityColors: Record<string, string> = {
-  HIGH: 'bg-red-100 border-red-300 text-red-700',
-  MEDIUM: 'bg-yellow-100 border-yellow-300 text-yellow-700',
-  LOW: 'bg-green-100 border-green-300 text-green-700',
+const priorityInfo: Record<string, { color: string; bg: string; label: string }> = {
+  HIGH: { color: 'text-red-400', bg: 'bg-red-500/10', label: '높음' },
+  MEDIUM: { color: 'text-amber-400', bg: 'bg-amber-500/10', label: '보통' },
+  LOW: { color: 'text-blue-400', bg: 'bg-blue-500/10', label: '낮음' },
 };
 
-const priorityLabels: Record<string, string> = {
-  HIGH: '높음',
-  MEDIUM: '보통',
-  LOW: '낮음',
-};
-
-export function FeatureCard({ feature, onClick, availableTags = [], tasks = [], milestone }: FeatureCardProps) {
+export function FeatureCard({ feature, onClick, availableTags = [], tasks = [], milestone, isExpanded: externalIsExpanded, onToggleExpand }: FeatureCardProps) {
   const progressPercent = feature.progress_percentage;
   const isCompleted = progressPercent === 100 && feature.total_tasks > 0;
-
   const featureTags = feature.tags || [];
-
-  // Feature 색상 (기본값: 보라색)
   const featureColor = feature.color || '#8B5CF6';
+  const [internalIsExpanded, setInternalIsExpanded] = useState(false);
+  const p = priorityInfo[feature.priority || 'MEDIUM'];
 
-  const [isExpanded, setIsExpanded] = useState(false);
+  // 외부 제어가 있으면 외부 상태 사용, 없으면 내부 상태 사용
+  const isExpanded = externalIsExpanded !== undefined ? externalIsExpanded : internalIsExpanded;
 
-  // 확장 버튼 클릭 핸들러
   const handleExpandClick = (e: React.MouseEvent) => {
-    e.stopPropagation(); // 부모의 onClick 이벤트 방지
-    setIsExpanded(!isExpanded);
+    e.stopPropagation();
+    if (onToggleExpand) {
+      onToggleExpand();
+    } else {
+      setInternalIsExpanded(!internalIsExpanded);
+    }
   };
 
   return (
     <div
-      className={`rounded-lg p-4 border-2 shadow-sm hover:shadow-md transition-shadow cursor-pointer ${
-        isCompleted ? 'bg-green-50' : 'bg-white'
-      }`}
-      style={{ borderColor: isCompleted ? '#22c55e' : featureColor }}
       onClick={onClick}
+      className={`group relative bg-kanban-card-hover rounded-2xl border border-kanban-border p-5 hover:border-indigo-500/50 hover:shadow-2xl hover:shadow-indigo-500/10 transition-all cursor-pointer overflow-hidden kanban-glow ${
+        isCompleted ? 'border-green-500/30' : ''
+      }`}
     >
-      {/* 제목 */}
-      <div className="flex items-start gap-2 mb-3">
-        <div
-          className="w-2 h-2 rounded-full mt-2 flex-shrink-0"
-          style={{ backgroundColor: featureColor }}
-        />
-        <h4 className="font-semibold text-gray-900 flex-1 break-words">
-          {feature.title}
-        </h4>
-      </div>
+      {/* 좌측 컬러 바 */}
+      <div
+        className="absolute top-0 left-0 bottom-0 w-1.5"
+        style={{ backgroundColor: isCompleted ? '#22c55e' : featureColor }}
+      />
 
-      {/* 마일스톤 뱃지 */}
-      {milestone && (
-        <div className="mb-3">
-          <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-700 border border-purple-200">
-            <Flag className="h-3 w-3" />
-            {milestone.title}
-          </span>
+      {/* 제목 영역 */}
+      <div className="flex items-start justify-between mb-4 pl-2">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <div
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ backgroundColor: isCompleted ? '#22c55e' : featureColor }}
+            />
+            <h3 className="font-bold text-white text-[15px] group-hover:text-indigo-400 transition-colors">
+              {feature.title}
+            </h3>
+          </div>
+
+          {/* 마일스톤 뱃지 */}
+          {milestone && (
+            <div className="flex items-center gap-2 bg-kanban-card px-2 py-0.5 rounded-md border border-kanban-border mt-2">
+              <Flag size={10} className="text-indigo-400" />
+              <span className="text-[10px] text-indigo-400 font-bold">{milestone.title}</span>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* 태그 표시 */}
       {featureTags.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-3">
+        <div className="flex flex-wrap gap-1.5 mb-4 pl-2">
           {featureTags.map((tag) => (
-            <Badge
+            <span
               key={tag.id}
-              style={{ backgroundColor: tag.color }}
-              className="text-white text-xs"
+              className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
+              style={{
+                backgroundColor: `${tag.color}15`,
+                borderColor: `${tag.color}44`,
+                color: tag.color,
+              }}
             >
               {tag.name}
-            </Badge>
+            </span>
           ))}
         </div>
       )}
 
       {/* 진행률 */}
-      <div className="mb-3">
-        <div className="flex items-center justify-between mb-1">
-          <span className={`text-xs ${isCompleted ? 'text-green-700 font-semibold' : 'text-gray-600'}`}>
-            {isCompleted && <CheckCircle2 className="h-3 w-3 inline mr-1" />}
+      <div className="mb-4 pl-2">
+        <div className="flex justify-between text-[11px] mb-1.5">
+          <span className="text-zinc-500 font-medium">
             {feature.completed_tasks}/{feature.total_tasks} 완료
           </span>
-          <span className={`text-xs font-semibold ${isCompleted ? 'text-green-600' : 'text-purple-600'}`}>
+          <span className={`font-bold ${isCompleted ? 'text-green-400' : 'text-white'}`}>
             {Math.round(progressPercent)}%
           </span>
         </div>
-        <Progress
-          value={progressPercent}
-          className={`h-2 ${isCompleted ? '[&>div]:bg-green-500' : ''}`}
-        />
+        <div className="h-1.5 w-full bg-kanban-surface rounded-full overflow-hidden">
+          <div
+            className="h-full transition-all duration-1000 ease-out rounded-full"
+            style={{
+              width: `${progressPercent}%`,
+              backgroundColor: isCompleted ? '#22c55e' : featureColor,
+              boxShadow: `0 0 10px ${isCompleted ? '#22c55e' : featureColor}44`,
+            }}
+          />
+        </div>
       </div>
 
       {/* 추가 정보 */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {feature.priority && (
-          <span
-            className={`text-xs px-2 py-1 rounded-full border ${
-              priorityColors[feature.priority]
-            }`}
+      <div className="flex items-center justify-between border-t border-kanban-border pt-4 mt-1 pl-2">
+        <div className="flex items-center gap-3">
+          {feature.priority && (
+            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${p.bg}`}>
+              <AlertCircle size={12} className={p.color} />
+              <span className={`text-[10px] font-bold ${p.color}`}>{p.label}</span>
+            </div>
+          )}
+          {feature.due_date && (
+            <div className="flex items-center gap-1.5 text-zinc-500">
+              <Calendar size={12} />
+              <span className="text-[10px] font-medium">{feature.due_date}</span>
+            </div>
+          )}
+        </div>
+
+        {tasks.length > 0 && (
+          <button
+            onClick={handleExpandClick}
+            className="flex items-center gap-1 group/sub"
           >
-            <AlertCircle className="h-3 w-3 inline mr-1" />
-            {priorityLabels[feature.priority]}
-          </span>
-        )}
-        {feature.due_date && (
-          <span className="text-xs text-gray-500 flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
-            {feature.due_date}
-          </span>
+            <span className="text-[10px] font-bold text-zinc-400 group-hover/sub:text-white transition-colors">
+              서브태스크
+            </span>
+            {isExpanded ? (
+              <ChevronDown size={14} className="text-zinc-600 group-hover/sub:text-white transition-all" />
+            ) : (
+              <ChevronRight size={14} className="text-zinc-600 group-hover/sub:text-white transition-all" />
+            )}
+          </button>
         )}
       </div>
 
       {/* 서브태스크 목록 */}
-      {tasks.length > 0 && (
-        <div className="mt-4">
-          <div
-            className="flex items-center gap-2 cursor-pointer hover:text-gray-700"
-            onClick={handleExpandClick}
-          >
-            <span className="text-xs text-gray-500">
-              서브태스크
-            </span>
-            {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
-          </div>
-          {isExpanded && (
-            <div className="mt-2 space-y-2">
-              {tasks.map((task) => (
-                <div key={task.id} className="flex items-start gap-2 p-2 rounded bg-gray-50 hover:bg-gray-100">
-                  <div
-                    className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${task.completed ? 'bg-green-500' : 'bg-gray-300'
-                    }`}
+      {isExpanded && tasks.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-kanban-border pl-2 space-y-2">
+          {tasks.map((task) => (
+            <div
+              key={task.id}
+              className="flex items-center gap-2 p-2 rounded-lg bg-kanban-surface hover:bg-white/5 transition-colors"
+            >
+              <div
+                className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  task.completed ? 'bg-green-500' : 'bg-zinc-600'
+                }`}
+              >
+                {task.completed && (
+                  <svg
+                    className="w-2.5 h-2.5 text-white"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
-                    {task.completed && (
-                      <svg className="w-3 h-3 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
-                        <path d="M5 13l4 4L19 7"></path>
-                      </svg>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span
-                      className={`text-xs block ${task.completed ? 'text-gray-500 line-through' : 'text-gray-900'
-                      }`}
-                    >
-                      {task.title}
-                    </span>
-                    <span className="text-xs text-gray-400">
-                      {task.block_name || task.block_id}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                    <path d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </div>
+              <span
+                className={`text-xs flex-1 ${
+                  task.completed ? 'text-zinc-500 line-through' : 'text-zinc-300'
+                }`}
+              >
+                {task.title}
+              </span>
+              <span className="text-[10px] font-bold text-zinc-600 tracking-wider">
+                → {task.block_name || task.block_id}
+              </span>
             </div>
-          )}
+          ))}
         </div>
       )}
     </div>

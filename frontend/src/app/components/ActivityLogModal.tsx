@@ -43,90 +43,90 @@ export function ActivityLogModal({
         return (
           <>
             <span className="font-medium text-white">{user.name}</span>
-            <span className="text-gray-400">님이 보드를 생성했습니다</span>
+            <span className="text-zinc-400">님이 보드를 생성했습니다</span>
           </>
         );
       case 'feature_created':
         return (
           <>
             <span className="font-medium text-white">{user.name}</span>
-            <span className="text-gray-400">님이 Feature </span>
-            <span className="font-medium text-blue-400">{metadata.featureTitle}</span>
-            <span className="text-gray-400">를 생성했습니다</span>
+            <span className="text-zinc-400">님이 Feature </span>
+            <span className="font-medium text-indigo-400">{metadata.featureTitle}</span>
+            <span className="text-zinc-400">를 생성했습니다</span>
           </>
         );
       case 'task_created':
         return (
           <>
             <span className="font-medium text-white">{user.name}</span>
-            <span className="text-gray-400">님이 Task </span>
-            <span className="font-medium text-blue-400">{metadata.taskTitle}</span>
-            <span className="text-gray-400">를 생성했습니다</span>
+            <span className="text-zinc-400">님이 Task </span>
+            <span className="font-medium text-indigo-400">{metadata.taskTitle}</span>
+            <span className="text-zinc-400">를 생성했습니다</span>
           </>
         );
       case 'task_moved':
         return (
           <>
             <span className="font-medium text-white">{user.name}</span>
-            <span className="text-gray-400">님이 </span>
-            <span className="font-medium text-blue-400">{metadata.taskTitle}</span>
-            <span className="text-gray-400">를 </span>
+            <span className="text-zinc-400">님이 </span>
+            <span className="font-medium text-indigo-400">{metadata.taskTitle}</span>
+            <span className="text-zinc-400">를 </span>
             <span className="font-medium text-green-400">{metadata.fromBlock}</span>
-            <span className="text-gray-400">에서 </span>
+            <span className="text-zinc-400">에서 </span>
             <span className="font-medium text-green-400">{metadata.toBlock}</span>
-            <span className="text-gray-400">로 이동했습니다</span>
+            <span className="text-zinc-400">로 이동했습니다</span>
           </>
         );
       case 'task_completed':
         return (
           <>
             <span className="font-medium text-white">{user.name}</span>
-            <span className="text-gray-400">님이 </span>
-            <span className="font-medium text-blue-400">{metadata.taskTitle}</span>
-            <span className="text-gray-400">를 완료했습니다</span>
+            <span className="text-zinc-400">님이 </span>
+            <span className="font-medium text-indigo-400">{metadata.taskTitle}</span>
+            <span className="text-zinc-400">를 완료했습니다</span>
           </>
         );
       case 'member_added':
         return (
           <>
             <span className="font-medium text-white">{user.name}</span>
-            <span className="text-gray-400">님이 </span>
-            <span className="font-medium text-blue-400">{metadata.memberName}</span>
-            <span className="text-gray-400">님을 보드에 추가했습니다</span>
+            <span className="text-zinc-400">님이 </span>
+            <span className="font-medium text-indigo-400">{metadata.memberName}</span>
+            <span className="text-zinc-400">님을 보드에 추가했습니다</span>
           </>
         );
       case 'member_removed':
         return (
           <>
             <span className="font-medium text-white">{user.name}</span>
-            <span className="text-gray-400">님이 </span>
-            <span className="font-medium text-blue-400">{metadata.memberName}</span>
-            <span className="text-gray-400">님을 보드에서 제거했습니다</span>
+            <span className="text-zinc-400">님이 </span>
+            <span className="font-medium text-indigo-400">{metadata.memberName}</span>
+            <span className="text-zinc-400">님을 보드에서 제거했습니다</span>
           </>
         );
       case 'block_created':
         return (
           <>
             <span className="font-medium text-white">{user.name}</span>
-            <span className="text-gray-400">님이 커스텀 블록 </span>
+            <span className="text-zinc-400">님이 커스텀 블록 </span>
             <span className="font-medium text-purple-400">{metadata.blockName}</span>
-            <span className="text-gray-400">을 생성했습니다</span>
+            <span className="text-zinc-400">을 생성했습니다</span>
           </>
         );
       case 'block_deleted':
         return (
           <>
             <span className="font-medium text-white">{user.name}</span>
-            <span className="text-gray-400">님이 커스텀 블록 </span>
+            <span className="text-zinc-400">님이 커스텀 블록 </span>
             <span className="font-medium text-purple-400">{metadata.blockName}</span>
-            <span className="text-gray-400">을 삭제했습니다</span>
+            <span className="text-zinc-400">을 삭제했습니다</span>
           </>
         );
       default:
         return (
           <>
             <span className="font-medium text-white">{user.name}</span>
-            <span className="text-gray-400">님이 작업을 수행했습니다</span>
+            <span className="text-zinc-400">님이 작업을 수행했습니다</span>
           </>
         );
     }
@@ -151,16 +151,16 @@ export function ActivityLogModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#282e33] rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-kanban-bg rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* 헤더 */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-700">
+        <div className="flex items-center justify-between p-6 border-b border-kanban-border">
           <div className="flex items-center gap-2">
-            <Activity className="h-5 w-5 text-blue-400" />
+            <Activity className="h-5 w-5 text-indigo-400" />
             <h2 className="text-xl font-semibold text-white">활동 로그</h2>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors"
+            className="text-zinc-400 hover:text-white transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
@@ -169,7 +169,7 @@ export function ActivityLogModal({
         {/* 콘텐츠 */}
         <div className="flex-1 overflow-y-auto p-6">
           {activities.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-zinc-500">
               <Activity className="h-12 w-12 mx-auto mb-3 opacity-50" />
               <p>아직 활동 기록이 없습니다.</p>
             </div>
@@ -178,7 +178,7 @@ export function ActivityLogModal({
               {activities.map((activity) => (
                 <div
                   key={activity.id}
-                  className="flex gap-4 p-4 bg-[#1d2125] rounded-lg border border-gray-700 hover:border-gray-600 transition-colors"
+                  className="flex gap-4 p-4 bg-kanban-card rounded-lg border border-kanban-border hover:border-white/20 transition-colors"
                 >
                   {/* 아바타 */}
                   <div className="flex-shrink-0">
@@ -189,7 +189,7 @@ export function ActivityLogModal({
                         className="w-10 h-10 rounded-full"
                       />
                     ) : (
-                      <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-medium">
+                      <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-medium">
                         {activity.user.name[0]}
                       </div>
                     )}
@@ -198,7 +198,7 @@ export function ActivityLogModal({
                   {/* 내용 */}
                   <div className="flex-1 min-w-0">
                     <div className="text-sm mb-1">{getActionText(activity)}</div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-zinc-500">
                       {getTimeAgo(activity.createdAt)}
                     </div>
                   </div>
@@ -211,7 +211,7 @@ export function ActivityLogModal({
                   onClick={handleLoadMore}
                   disabled={isLoading}
                   variant="outline"
-                  className="w-full border-gray-600 text-gray-300 hover:bg-[#3a4149] hover:text-white"
+                  className="w-full border-kanban-border text-zinc-300 hover:bg-white/5 hover:text-white"
                 >
                   {isLoading ? (
                     '불러오는 중...'
@@ -228,11 +228,11 @@ export function ActivityLogModal({
         </div>
 
         {/* 푸터 */}
-        <div className="border-t border-gray-700 p-4 bg-[#1d2125]">
+        <div className="border-t border-kanban-border p-4 bg-kanban-card">
           <Button
             onClick={onClose}
             variant="outline"
-            className="w-full border-gray-600 text-gray-300 hover:bg-[#3a4149] hover:text-white"
+            className="w-full border-kanban-border text-zinc-300 hover:bg-white/5 hover:text-white"
           >
             닫기
           </Button>

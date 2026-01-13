@@ -1,21 +1,5 @@
 import { useState } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from './ui/dialog';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Textarea } from './ui/textarea';
-import { Label } from './ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from './ui/select';
+import { X, CheckCircle2, ChevronDown, Calendar } from 'lucide-react';
 import { Priority } from '../types';
 
 interface AddFeatureModalProps {
@@ -51,74 +35,103 @@ export function AddFeatureModal({ open, onClose, onAdd }: AddFeatureModalProps) 
     }
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>새 Feature 추가</DialogTitle>
-        </DialogHeader>
+  if (!open) return null;
 
-        <div className="space-y-4">
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg bg-kanban-bg text-zinc-300 rounded-2xl border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden animate-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* 헤더 */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 bg-white/[0.02]">
+          <h2 className="text-lg font-bold text-white">새 Feature 추가</h2>
+          <button
+            onClick={onClose}
+            className="p-2 text-zinc-500 hover:text-white transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* 콘텐츠 */}
+        <div className="px-6 py-6 space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="feature-title">제목 *</Label>
-            <Input
-              id="feature-title"
+            <label className="kanban-label block">제목 *</label>
+            <input
+              type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="예: 로그인 기능 구현"
+              className="w-full bg-kanban-input border border-white/5 rounded-xl p-3 text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/50 transition-all text-sm"
+              autoFocus
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="feature-description">설명</Label>
-            <Textarea
-              id="feature-description"
+            <label className="kanban-label block">설명</label>
+            <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Feature에 대한 자세한 설명..."
               rows={3}
+              className="w-full bg-kanban-input border border-white/5 rounded-xl p-3 text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/50 transition-all resize-none text-sm"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="feature-priority">우선순위</Label>
-              <Select
-                value={priority}
-                onValueChange={(value) => setPriority(value as Priority)}
-              >
-                <SelectTrigger id="feature-priority">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="high">높음</SelectItem>
-                  <SelectItem value="medium">보통</SelectItem>
-                  <SelectItem value="low">낮음</SelectItem>
-                </SelectContent>
-              </Select>
+              <label className="kanban-label block">우선순위</label>
+              <div className="relative">
+                <select
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as Priority)}
+                  className="w-full bg-kanban-card-hover border border-white/5 rounded-lg px-4 py-2.5 appearance-none focus:outline-none focus:border-indigo-500/50 text-xs font-bold text-zinc-200"
+                >
+                  <option value="high" className="bg-kanban-bg">높음</option>
+                  <option value="medium" className="bg-kanban-bg">보통</option>
+                  <option value="low" className="bg-kanban-bg">낮음</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 pointer-events-none" size={14} />
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="feature-duedate">마감일</Label>
-              <Input
-                id="feature-duedate"
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-              />
+              <label className="kanban-label block">마감일</label>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="w-full bg-kanban-card-hover border border-white/5 rounded-lg px-4 py-2.5 focus:outline-none focus:border-indigo-500/50 text-xs font-bold text-zinc-200"
+                />
+                <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 pointer-events-none" size={14} />
+              </div>
             </div>
           </div>
-
-          <div className="flex gap-2 pt-4">
-            <Button onClick={handleSubmit} className="flex-1">
-              추가
-            </Button>
-            <Button variant="outline" onClick={onClose} className="flex-1">
-              취소
-            </Button>
-          </div>
         </div>
-      </DialogContent>
-    </Dialog>
+
+        {/* 푸터 */}
+        <div className="px-6 py-5 border-t border-white/5 bg-white/[0.02] flex justify-end items-center gap-4">
+          <button
+            onClick={onClose}
+            className="text-[11px] font-bold text-zinc-500 hover:text-white transition-all tracking-wider"
+          >
+            취소
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!title.trim()}
+            className="px-6 py-2.5 bg-white text-black font-black text-[11px] rounded-lg tracking-widest hover:bg-zinc-200 transition-all flex items-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            추가
+            <CheckCircle2 size={14} className="text-indigo-600" />
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

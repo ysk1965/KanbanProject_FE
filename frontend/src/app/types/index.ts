@@ -57,6 +57,12 @@ export interface BoardSubscription {
   current_period_end: string | null;
 }
 
+export interface MemberPreview {
+  id: string;
+  name: string;
+  profile_image: string | null;
+}
+
 export interface Board {
   id: string;
   name: string;
@@ -66,6 +72,9 @@ export interface Board {
   my_role?: Role;
   is_starred: boolean;
   member_count: number;
+  task_count?: number;
+  completed_tasks?: number;
+  members?: MemberPreview[];
   subscription: BoardSubscription;
   tier?: BoardTier;
   trial_ends_at?: string | null;
@@ -194,6 +203,7 @@ export interface Task {
   tags: Tag[];
   checklist_total?: number;
   checklist_completed?: number;
+  checklist_version?: number; // 체크리스트 변경 감지용 버전
   created_by?: { id: string; name: string };
   created_at?: string;
   updated_at?: string;

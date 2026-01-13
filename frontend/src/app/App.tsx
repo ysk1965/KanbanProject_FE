@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LoginPage } from './components/LoginPage';
-import { BoardListPage } from './components/BoardListPage';
+import { Dashboard } from './components/dashboard';
 import { InviteLandingPage } from './components/InviteLandingPage';
 import { LandingPage } from './components/landing/LandingPage';
 import { KanbanBoardPage } from './pages/KanbanBoardPage';
@@ -192,21 +192,40 @@ function BoardsRoute() {
     }
   };
 
+  const handleDeleteBoard = async (boardId: string) => {
+    try {
+      await boardService.deleteBoard(boardId);
+      setBoards(boards.filter((b) => b.id !== boardId));
+    } catch (error) {
+      console.error('Failed to delete board:', error);
+    }
+  };
+
+  const handleUpdateBoard = async (boardId: string, name: string, description?: string) => {
+    try {
+      const updatedBoard = await boardService.updateBoard(boardId, name, description);
+      setBoards(boards.map((b) => (b.id === boardId ? { ...b, ...updatedBoard } : b)));
+    } catch (error) {
+      console.error('Failed to update board:', error);
+    }
+  };
+
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#1d2125] flex items-center justify-center">
+      <div className="min-h-screen bg-bridge-dark flex items-center justify-center">
         <div className="text-white text-lg">로딩 중...</div>
       </div>
     );
   }
 
   return (
-    <BoardListPage
+    <Dashboard
       boards={boards}
       onSelectBoard={handleSelectBoard}
       onCreateBoard={handleCreateBoard}
       onToggleStar={handleToggleStar}
-      onLogout={logout}
+      onDeleteBoard={handleDeleteBoard}
+      onUpdateBoard={handleUpdateBoard}
       onRefreshBoards={loadBoards}
     />
   );
