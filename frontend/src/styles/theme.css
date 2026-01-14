@@ -218,21 +218,14 @@
   -webkit-backdrop-filter: blur(20px);
 }
 
-/* Text shimmer effect */
+/* Text shimmer effect - Indigo to Teal gradient */
 .text-shimmer {
-  background: linear-gradient(
-    90deg,
-    #fff 0%,
-    #a5b4fc 25%,
-    #fff 50%,
-    #2dd4bf 75%,
-    #fff 100%
-  );
+  background: linear-gradient(90deg, #818CF8 0%, #2DD4BF 50%, #818CF8 100%);
   background-size: 200% auto;
+  color: transparent;
   -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: shimmer 4s linear infinite;
+  animation: shimmer 6s linear infinite;
 }
 
 @keyframes shimmer {
@@ -354,17 +347,17 @@ html {
 
 /* Text Glow Effects */
 .text-glow-indigo {
-  text-shadow: 0 0 40px rgba(99, 102, 241, 0.5), 0 0 80px rgba(99, 102, 241, 0.3);
+  text-shadow: 0 0 15px rgba(99, 102, 241, 0.4), 0 0 30px rgba(99, 102, 241, 0.2);
 }
 
 .text-glow-cyan {
-  text-shadow: 0 0 40px rgba(45, 212, 191, 0.5), 0 0 80px rgba(45, 212, 191, 0.3);
+  text-shadow: 0 0 15px rgba(45, 212, 191, 0.4), 0 0 30px rgba(45, 212, 191, 0.2);
 }
 
 /* Text Outline Effect */
 .text-outline {
+  -webkit-text-stroke: 1.5px rgba(45, 212, 191, 0.5);
   color: transparent;
-  -webkit-text-stroke: 2px rgba(45, 212, 191, 0.8);
 }
 
 /* BridgeSpots Dot Animation */

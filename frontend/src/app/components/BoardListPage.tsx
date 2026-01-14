@@ -84,12 +84,13 @@ export function BoardListPage({
     setIsCreatingTestData(true);
     try {
       const response = await testDataAPI.createTestBoard();
-      console.log('Test board created:', response);
-      alert(`${response.message}\n\n- Board: ${response.board_name}\n- Members: ${response.member_count}\n- Features: ${response.feature_count}\n- Tasks: ${response.task_count}\n- Checklists: ${response.checklist_item_count}\n- Schedule Blocks: ${response.schedule_block_count}`);
+      console.log('Test board response:', response);
+      // 보드 목록 새로고침 후 해당 보드로 바로 이동
       onRefreshBoards?.();
+      onSelectBoard(response.board_id);
     } catch (error) {
-      console.error('Failed to create test board:', error);
-      alert('테스트 보드 생성에 실패했습니다.');
+      console.error('Failed to create/join test board:', error);
+      alert('테스트 보드 접근에 실패했습니다.');
     } finally {
       setIsCreatingTestData(false);
     }

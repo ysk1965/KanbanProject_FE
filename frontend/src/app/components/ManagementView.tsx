@@ -107,13 +107,14 @@ export function ManagementView({ boardId, milestones, members, onTaskClick, refr
   const [data, setData] = useState<ManagementStatistics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
+  const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(
+    milestones.length > 0 ? milestones[0].id : null
+  );
   const [settings, setSettings] = useState({
     stagnant_task_days: 3,
     stuck_checklist_days: 2,
   });
   const [showSettings, setShowSettings] = useState(false);
-  const [expandedMilestones, setExpandedMilestones] = useState<Set<string>>(new Set());
   const [expandedMembers, setExpandedMembers] = useState<Set<string>>(new Set());
   const [showTaskList, setShowTaskList] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'health' | 'productivity' | 'delayed'>('health');
@@ -199,11 +200,10 @@ export function ManagementView({ boardId, milestones, members, onTaskClick, refr
             {/* 마일스톤 필터 */}
             <select
               value={selectedMilestoneId || ''}
-              onChange={(e) => setSelectedMilestoneId(e.target.value || null)}
+              onChange={(e) => setSelectedMilestoneId(e.target.value)}
               className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white
                 focus:outline-none focus:ring-2 focus:ring-bridge-accent/50"
             >
-              <option value="">전체 마일스톤</option>
               {milestones.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.title}
@@ -279,16 +279,15 @@ export function ManagementView({ boardId, milestones, members, onTaskClick, refr
             </div>
           </div>
 
-          {/* 마일스톤 현황 */}
+          {/* 마일스톤 진행 */}
           <div className="p-4 bg-bridge-obsidian rounded-xl border border-white/10">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                {selectedMilestoneId ? '마일스톤 진행' : '마일스톤'}
+                마일스톤 진행
               </span>
               <Target className="w-4 h-4 text-slate-500" />
             </div>
-            {selectedMilestoneId && data.milestone_health.length > 0 ? (
-              // 특정 마일스톤 선택 시 진행률 표시
+            {data.milestone_health.length > 0 ? (
               <>
                 <div className="text-3xl font-bold text-white">
                   {data.milestone_health[0].progress_percentage.toFixed(0)}%
@@ -298,18 +297,7 @@ export function ManagementView({ boardId, milestones, members, onTaskClick, refr
                 </div>
               </>
             ) : (
-              // 전체 마일스톤 요약
-              <>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold text-white">{data.summary.on_track_milestones}</span>
-                  <span className="text-slate-500">/ {data.summary.total_milestones}</span>
-                </div>
-                {data.summary.at_risk_milestones > 0 && (
-                  <div className="mt-1 text-xs text-orange-400">
-                    {data.summary.at_risk_milestones}개 위험
-                  </div>
-                )}
-              </>
+              <div className="text-3xl font-bold text-slate-500">-</div>
             )}
           </div>
 
@@ -360,9 +348,9 @@ export function ManagementView({ boardId, milestones, members, onTaskClick, refr
           >
             <div className="flex items-center gap-2">
               <Target className="w-4 h-4" />
-              {selectedMilestoneId && data.milestone_health.length > 0
+              {data.milestone_health.length > 0
                 ? data.milestone_health[0].milestone.title
-                : '마일스톤 헬스'}
+                : '마일스톤'}
             </div>
           </button>
           <button
@@ -402,8 +390,6 @@ export function ManagementView({ boardId, milestones, members, onTaskClick, refr
         {activeTab === 'health' && (
           <MilestoneHealthSection
             milestoneHealth={data.milestone_health}
-            expandedMilestones={expandedMilestones}
-            setExpandedMilestones={setExpandedMilestones}
             showTaskList={showTaskList}
             setShowTaskList={setShowTaskList}
             boardId={boardId}
@@ -432,8 +418,6 @@ export function ManagementView({ boardId, milestones, members, onTaskClick, refr
 
 function MilestoneHealthSection({
   milestoneHealth,
-  expandedMilestones,
-  setExpandedMilestones,
   showTaskList,
   setShowTaskList,
   boardId,
@@ -443,8 +427,6 @@ function MilestoneHealthSection({
   members,
 }: {
   milestoneHealth: MilestoneHealth[];
-  expandedMilestones: Set<string>;
-  setExpandedMilestones: React.Dispatch<React.SetStateAction<Set<string>>>;
   showTaskList: Set<string>;
   setShowTaskList: React.Dispatch<React.SetStateAction<Set<string>>>;
   boardId: string;
@@ -457,18 +439,6 @@ function MilestoneHealthSection({
   const [editingMinutes, setEditingMinutes] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
   const [showAllocationSection, setShowAllocationSection] = useState<Set<string>>(new Set());
-
-  const toggleExpand = (id: string) => {
-    setExpandedMilestones((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
 
   const toggleTaskList = (milestoneId: string) => {
     setShowTaskList((prev) => {
@@ -542,7 +512,6 @@ function MilestoneHealthSection({
         </div>
       )}
       {milestoneHealth.map((health) => {
-        const isExpanded = expandedMilestones.has(health.milestone.id);
         const statusConfig = STATUS_CONFIG[health.status];
 
         return (
@@ -551,14 +520,8 @@ function MilestoneHealthSection({
             className="bg-bridge-obsidian rounded-xl border border-white/10 overflow-hidden"
           >
             {/* 헤더 */}
-            <div
-              onClick={() => toggleExpand(health.milestone.id)}
-              className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
-            >
+            <div className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <button className="text-slate-400">
-                  {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
-                </button>
                 <div>
                   <h3 className="font-semibold text-white">{health.milestone.title}</h3>
                   <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
@@ -591,9 +554,8 @@ function MilestoneHealthSection({
               </div>
             </div>
 
-            {/* 확장 콘텐츠 */}
-            {isExpanded && (
-              <div className="px-4 pb-4 border-t border-white/5">
+            {/* 상세 콘텐츠 */}
+            <div className="px-4 pb-4 border-t border-white/5">
                 <div className="grid grid-cols-2 gap-6 pt-4">
                   {/* 속도 & 추정 정확도 통합 */}
                   <div className="space-y-4">
@@ -973,8 +935,7 @@ function MilestoneHealthSection({
                   )}
                 </div>
               </div>
-            )}
-          </div>
+            </div>
         );
       })}
     </div>

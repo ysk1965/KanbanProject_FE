@@ -94,15 +94,17 @@ export function Dashboard({
   const [editTarget, setEditTarget] = useState<Board | null>(null);
   const [isCreatingTestBoard, setIsCreatingTestBoard] = useState(false);
 
-  // 테스트 보드 생성 (개발용)
+  // 테스트 보드 생성/참여 (개발용)
   const handleCreateTestBoard = async () => {
     if (isCreatingTestBoard) return;
     setIsCreatingTestBoard(true);
     try {
-      await testDataAPI.createTestBoard();
+      const response = await testDataAPI.createTestBoard();
       onRefreshBoards();
+      // 보드로 바로 이동
+      onSelectBoard(response.board_id);
     } catch (error) {
-      console.error('Failed to create test board:', error);
+      console.error('Failed to create/join test board:', error);
     } finally {
       setIsCreatingTestBoard(false);
     }

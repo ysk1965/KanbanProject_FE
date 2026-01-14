@@ -534,6 +534,16 @@ export interface TimeBlockStatistics {
 }
 
 /**
+ * Feature 내 Task별 시간 정보
+ */
+export interface FeatureTaskTime {
+  task_id: string;
+  task_title: string;
+  minutes: number;
+  percentage: number;
+}
+
+/**
  * 구성원별 통계
  */
 export interface MemberStatistics {
@@ -552,6 +562,7 @@ export interface MemberStatistics {
     feature_title: string;
     feature_color: string;
     minutes: number;
+    tasks?: FeatureTaskTime[];
   }[];
 }
 

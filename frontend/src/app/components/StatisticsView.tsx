@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   BarChart3,
   Clock,
@@ -9,6 +9,7 @@ import {
   Calendar,
   Filter,
   ChevronDown,
+  ChevronRight,
   Zap,
   ListTodo,
   PieChart,
@@ -1497,6 +1498,20 @@ function IndividualProductivityView({
   members,
 }: IndividualProductivityViewProps) {
   const [selectedMemberId, setSelectedMemberId] = useState<string>('');
+  const [expandedFeatures, setExpandedFeatures] = useState<Set<string>>(new Set());
+
+  // Feature 펼치기/접기 토글
+  const toggleFeature = (featureId: string) => {
+    setExpandedFeatures((prev) => {
+      const next = new Set(prev);
+      if (next.has(featureId)) {
+        next.delete(featureId);
+      } else {
+        next.add(featureId);
+      }
+      return next;
+    });
+  };
 
   // 선택된 멤버의 통계
   const selectedMemberStats = useMemo(() => {
@@ -1725,38 +1740,84 @@ function IndividualProductivityView({
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedMemberStats.by_feature.map((f, index) => {
+                  {selectedMemberStats.by_feature.map((f) => {
                     const percentage = selectedMemberStats.total_minutes > 0
                       ? (f.minutes / selectedMemberStats.total_minutes) * 100
                       : 0;
+                    const isExpanded = expandedFeatures.has(f.feature_id);
+                    const hasTasks = f.tasks && f.tasks.length > 0;
                     return (
-                      <tr key={index} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: f.feature_color }}
-                            />
-                            <span className="text-white text-sm">{f.feature_title}</span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-right text-slate-300 text-sm">
-                          {formatMinutes(f.minutes)}
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <div className="w-24 bg-white/10 rounded-full h-2">
+                      <React.Fragment key={f.feature_id}>
+                        <tr
+                          onClick={() => hasTasks && toggleFeature(f.feature_id)}
+                          className={`border-b border-white/5 transition-colors ${hasTasks ? 'hover:bg-white/5 cursor-pointer' : ''}`}
+                        >
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                              {hasTasks ? (
+                                isExpanded ? (
+                                  <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                                ) : (
+                                  <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                                )
+                              ) : (
+                                <div className="w-4" />
+                              )}
                               <div
-                                className="h-2 rounded-full bg-bridge-accent"
-                                style={{ width: `${percentage}%` }}
+                                className="w-3 h-3 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: f.feature_color }}
                               />
+                              <span className="text-white text-sm">{f.feature_title}</span>
+                              {hasTasks && (
+                                <span className="text-slate-500 text-xs">({f.tasks?.length}개 Task)</span>
+                              )}
                             </div>
-                            <span className="text-slate-400 text-xs w-12 text-right">
-                              {percentage.toFixed(0)}%
-                            </span>
-                          </div>
-                        </td>
-                      </tr>
+                          </td>
+                          <td className="py-3 px-4 text-right text-slate-300 text-sm">
+                            {formatMinutes(f.minutes)}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <div className="w-24 bg-white/10 rounded-full h-2">
+                                <div
+                                  className="h-2 rounded-full bg-bridge-accent"
+                                  style={{ width: `${percentage}%` }}
+                                />
+                              </div>
+                              <span className="text-slate-400 text-xs w-12 text-right">
+                                {percentage.toFixed(0)}%
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                        {/* 펼쳐진 Task 목록 */}
+                        {isExpanded && f.tasks && f.tasks.map((task) => (
+                          <tr key={task.task_id} className="bg-white/[0.02]">
+                            <td className="py-2 px-4 pl-14">
+                              <div className="flex items-center gap-2">
+                                <div className="w-1.5 h-1.5 rounded-full bg-slate-600" />
+                                <span className="text-slate-400 text-sm">{task.task_title}</span>
+                              </div>
+                            </td>
+                            <td className="py-2 px-4 text-right text-slate-400 text-sm">
+                              {formatMinutes(task.minutes)}
+                            </td>
+                            <td className="py-2 px-4 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <div className="w-24 bg-white/5 rounded-full h-1.5">
+                                  <div
+                                    className="h-1.5 rounded-full bg-slate-500"
+                                    style={{ width: `${task.percentage}%` }}
+                                  />
+                                </div>
+                                <span className="text-slate-500 text-xs w-12 text-right">
+                                  {task.percentage.toFixed(0)}%
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>

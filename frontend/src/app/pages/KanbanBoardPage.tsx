@@ -1107,7 +1107,7 @@ export function KanbanBoardPage() {
                 }`}
               >
                 <BarChart3 size={14} />
-                통계
+                마일스톤
                 {!canAccessStatistics && <Lock size={10} className="ml-0.5" />}
               </button>
             )}
